@@ -1,7 +1,7 @@
 import requests
 
 def get_top_gainers():
-    url = "https://api.example.com/market/top-gainers"
+    url = "https://www.alphavantage.co/query"
     headers = {
         "Authorization": "Bearer YOUR_API_KEY"
     }
