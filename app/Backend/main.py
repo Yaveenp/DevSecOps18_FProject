@@ -1,281 +1,341 @@
-from flask import Flask,jsonify, request
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
-import datetime
+from datetime import datetime, timedelta
+import psycopg2
+from flask_sqlalchemy import SQLAlchemy
 
-app = Flask(__name__) # flask application
+app = Flask(__name__)
 CORS(app)
 
-# temporary users until database will be connected
-portfolio_user = [{"user_id": "1000", "username": "chenh", "password": "1234", "first_name": "chen", "last_name": "h"},
-                  {"user_id": "1001", "username": "alexb", "password": "9876", "first_name": "alex", "last_name": "bor"},
-                  {"user_id": "1002", "username": "timi", "password": "timitim", "first_name": "timi", "last_name": "tim"}
-                  ]
+# ADDED: Secret key for session management
+app.secret_key = 'your-secret-key-change-in-production'
 
+# SQLAlchemy DB config for PostgreSQL
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-class PortfolioUser:  # This class is the portfolio user login and creation and its protected access
-    num = 1003  # temporary id until database will return the user id
+# Initialize SQLAlchemy
+db = SQLAlchemy(app)
 
+# Create User model based on the DB table
+class User(db.Model):
+    __tablename__ = 'users'
+    user_id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
+    first_name = db.Column(db.String(50))
+    last_name = db.Column(db.String(50))
+    last_login = db.Column(db.TIMESTAMP)
+    session_expiration = db.Column(db.TIMESTAMP)
+
+# Create User model based on the base Portfolio User needed
+class PortfolioUser:
     def __init__(self, username: str, password: str, first_name: str, last_name: str):
         """
-        builder function to see if the user is already in database and if not create him
-        :param username: string - the username for the app user
-        :param password: string - the username password for the app
-        :param first_name: string - The user first name
-        :param last_name: string - The user last name
+        Builder function to see if the user is already in database and if not create him
+        # CHANGED: Fixed comment typo
         """
         self.username = username.lower()
         self.password = password.lower()
         self.first_name = first_name.lower()
         self.last_name = last_name.lower()
-        self.expiration = None
+        self.last_login = datetime.now() - timedelta(minutes=30)
+        self.session_expiration = datetime.now() - timedelta(hours=1)
         self.is_expired = False
         self.user_id = 0
 
-    def user_create(self, username: str, password: str, first_name: str, last_name: str, user_id=num):
+    def user_create(self, username: str, password: str, first_name: str, last_name: str):
         """
         Checks if user is already in database and if not send it to be created
-        :param username: string - the username for the app user
-        :param password: string - the username password for the app
-        :param first_name: string - The user first name
-        :param last_name: string - The user last name
-        :return: if username exists return an error if not returns a username was registered
+        # CHANGED: Simplified docstring
         """
-        # temporary check until database will be created
-        for user in portfolio_user:
-            if username == user["username"]:
+        try:
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
                 return "Username already exist"
-        else:
-            PortfolioUser(username, password, first_name, last_name)
-            # temporary id until database will return the user id
-            self.user_id = user_id
-            global num
-            num = user_id + 1
-            # temporary append until database will be connected
-            portfolio_user.append({"user_id": f"{self.user_id}", "username": f"{self.username}",
-                                   "password": f"{self.password}", "first_name": f"{self.first_name}",
-                                   "last_name": f"{self.last_name}"})
-            print(portfolio_user)
-            return f'User {self.username} was successfully registered. Please login'
+            else:
+                # Creates new user using the user database class
+                new_user = User(username=username, password=password,
+                               first_name=first_name, last_name=last_name)
+                db.session.add(new_user)
+                db.session.commit()
+                self.user_id = new_user.user_id
+                return f'User {self.username} was successfully registered. Please login'
+        except Exception as e:
+            print(e)
+            return "Parameters are not entered correctly, please try again."
 
     def user_login(self, username: str, password: str):
         """
-        Checks user cardinals in database and add session timeout stamp
-        :param username: string - the username that the user entered to log in
-        :param password: string - the password that the user entered to log in
-        :return: session time stamp on successful login message or an error message for invalided credentials
+        Checks user credentials in database and add session timeout stamp
+        # CHANGED: Fixed typo "cardinals" -> "credentials"
         """
-        for user in portfolio_user:
-            if username == user["username"]:
-                if password == user["password"]:
-                    self.expiration = datetime.datetime.now() + datetime.timedelta(minutes=15)
-                    self.is_expired = False
-                    return jsonify({"message": "successful login"})
-                else:
-                    return jsonify({"message": "Username or password are wrong or user dont exists"})
-            else:
-                continue
-        return jsonify({"message": "Username or password are wrong or user dont exists"})
+        try:
+            user = User.query.filter_by(username=username, password=password).first()
+            if user:
+                user.last_login = datetime.now()
+                user.session_expiration = user.last_login + timedelta(minutes=15)
+                db.session.commit() 
+                self.is_expired = False
+                self.user_id = user.user_id
+                self.session_expiration = user.session_expiration 
+                return True 
+            return False 
+        except Exception as e:
+            print(e)
+            return False 
 
     def session_expired(self):
         """
         Checks if user login session is still valid
-        :return: Session expired message if session passed 15 minutes or itself if not expired
         """
-        if self.expiration < datetime.datetime.now():
+        if self.session_expiration < datetime.now():
             self.is_expired = True
-            return jsonify({"message": "Session has expired. Please login again"})
+            return True  
         else:
-            return self
+            return False 
 
 
-@app.get('/api/portfolio/health')  # get the health status of the flask
+def get_current_user():
+    """
+    Get current logged-in user from session
+    """
+    if 'user_id' not in session:
+        return None
+    
+    try:
+        user = User.query.get(session['user_id'])
+        if user and user.session_expiration and user.session_expiration > datetime.now():
+            return user
+        else:
+            # If session expired clean it
+            session.clear()
+            return None
+    except Exception as e:
+        print(e)
+        return None
+
+
+@app.get('/api/portfolio/health')
 def health():
     try:
         return jsonify({'status': 'healthy'}), 200
     except Exception as e:
         print(e)
-        return jsonify({"status": "not healthy"}), 200
+        return jsonify({"status": "not healthy"}), 500
 
-
-@app.post('/api/portfolio/signup')  # sign up to application endpoint
+@app.post('/api/portfolio/signup')
 def signup():
     try:
-        try:
-            request_data = request.get_json()
-            print(request_data)
-            username = str(request_data["username"])
-            password = str(request_data["password"])
-            first_name = str(request_data["first_name"])
-            last_name = str(request_data["last_name"])
-            if (username.isascii() and password.isascii() and first_name.isascii() and last_name.isascii()
-                    and username.__len__() >= 3 and password.__len__() >= 3):
-                user = PortfolioUser(username, password, first_name, last_name)
-                result = user.user_create(username, password, first_name, last_name)
-                print(result)
-                if "already exist" in result:
-                    return jsonify({"message": "Username already exist, please try again."}), 403
-                else:
-                    return jsonify({"message": "Successfully registered. Please login."}), 200
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"message": "No data provided"}), 400
+        
+        username = str(request_data.get("username", ""))
+        password = str(request_data.get("password", ""))
+        first_name = str(request_data.get("first_name", ""))
+        last_name = str(request_data.get("last_name", ""))
+        
+        if (username.isascii() and password.isascii() and first_name.isascii() and last_name.isascii()
+                and len(username) >= 3 and len(password) >= 3):
+            
+            portfolio_user = PortfolioUser(username, password, first_name, last_name)
+            result = portfolio_user.user_create(username, password, first_name, last_name)
+            
+            if "already exist" in result:
+                return jsonify({"message": "Username already exists, please try again."}), 403
             else:
-                return jsonify({"message": "permeates are not entered correctly, please try again."}), 403
-        except Exception as e:
-            print(e)
-            return jsonify({"message": "permeates are not entered correctly, please try again."}), 403
+                return jsonify({"message": "Successfully registered. Please login."}), 200
+        else:
+            return jsonify({"message": "Parameters are not entered correctly, please try again."}), 403
+            
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred during registration"}), 500
 
-
-@app.post('/api/portfolio/signin')  # sign in to application endpoint
+@app.post('/api/portfolio/signin')
 def signin():
     try:
-        try:
-            request_data = request.get_json()
-            username = str(request_data["username"])
-            password = str(request_data["password"])
-            if username.isascii() and password.isascii() and username.__len__() >= 3 and password.__len__() >= 3:
-                global user
-                user = PortfolioUser(username, password, "", "")
-                result = user.user_login(username, password)
-                return result, 200
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"message": "No data provided"}), 400
+        
+        username = str(request_data.get("username", ""))
+        password = str(request_data.get("password", "")) 
+        
+        if username.isascii() and password.isascii() and len(username) >= 3 and len(password) >= 3: 
+            portfolio_user = PortfolioUser(username, password, "", "") 
+            login_success = portfolio_user.user_login(username, password)
+            
+            if login_success:
+                session['user_id'] = portfolio_user.user_id
+                session['username'] = username
+                return jsonify({"message": "Successful login"}), 200
             else:
-                return jsonify({"message": "permeates are not entered correctly, please try again."}), 403
-        except Exception as e:
-            print(e)
-            return jsonify({"message": "permeates are not entered correctly, please try again."}), 403
+                return jsonify({"message": "Username or password are wrong or user doesn't exist"}), 401
+        else:
+            return jsonify({"message": "Parameters are not entered correctly, please try again."}), 403
+            
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred during login"}), 500 
+    
 
-
-@app.get('/api/portfolio')  # Get the current portfolio (list of investments)
+@app.get('/api/portfolio')
 def portfolio_list():
     """
-    list of investments
-    :return: JSON of a list of investments for the user with all details
+    List of investments
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will return the username portfolio
-            return jsonify({"message": "portfolio"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401
+        
+        # TODO: Implement actual portfolio retrieval logic
+        return jsonify({"message": "portfolio", "user": current_user.username}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500
 
-
-@app.post('/api/portfolio')  # Add a new investment
+@app.post('/api/portfolio')
 def portfolio_add():
     """
-    Add a new investment of a user using JSON payload with ticker, quantity, buy_price, etc.
-    JSON PAYLOAD:
-    ticker
-    quantity
-    buy_price
-    :return: message of successful add of investment or the reason of failure
+    Add a new investment
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the add new investment process
-            return jsonify({"message": "Add a new investment"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401 
+        
+        # TODO: Implement actual investment addition logic
+        return jsonify({"message": "Add a new investment"}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500
 
-
-@app.put('/api/portfolio/<investment_id>')  # Update an investment (e.g., edit quantity or buy price)
-def portfolio_update():
+@app.put('/api/portfolio/<investment_id>')
+def portfolio_update(investment_id):
     """
-    update an investment of a user using JSON payload with investment_id, ticker, quantity, buy_price, etc.
-    JSON PAYLOAD:
-    investment_id
-    ticker
-    quantity
-    buy_price
-    :return: message of successful update of investment or the reason of failure
+    Update an investment
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the update investment process
-            return jsonify({"message": "Update an investment"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401
+        
+        # TODO: Implement actual investment update logic
+        return jsonify({"message": "Update an investment"}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500
 
-
-@app.delete('/api/portfolio/<investment_id>')  # Remove an investment
-def portfolio_remove():
+@app.delete('/api/portfolio/<investment_id>')
+def portfolio_remove(investment_id):
     """
-    Delete an investment of a user using JSON payload with investment_id
-    JSON PAYLOAD:
-    investment_id
-    :return: message of successful delete of investment or the reason of failure
+    Delete an investment
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the remove an investment process
-            return jsonify({"message": "Delete an investment"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401
+        
+        # TODO: Implement actual investment deletion logic
+        return jsonify({"message": "Delete an investment"}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500 
 
-
-@app.get('/api/stocks/<ticker>')  # Get real-time stock data for a specific ticker symbol
-def portfolio_real():
+@app.get('/api/stocks/<ticker>')
+def portfolio_real(ticker):
     """
-    real-time stock data for a specific ticker symbol
-    :return: JSON of all details and data for a specific ticker symbol
+    Real-time stock data for a specific ticker symbol
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the remove an investment process
-            return jsonify({"message": "Ticker real time data"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401
+        
+        # TODO: Implement actual stock data retrieval logic
+        return jsonify({"message": "Ticker real time data", "ticker": ticker}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500
 
-
-@app.get('/api/stocks/market')  # Get market trends and updates (optional external API integration)
+@app.get('/api/stocks/market')
 def portfolio_market():
     """
     Market trends and updates
-    :return: JSON of trends and JSON for updates
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the remove an investment process
-            return jsonify({"message": "Market trends and updates"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401 
+        
+        # TODO: Implement actual market data retrieval logic
+        return jsonify({"message": "Market trends and updates"}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500 
 
-
-@app.get('/api/portfolio/analytics')  # Fetch profit/loss data and growth trends for the portfolio
+@app.get('/api/portfolio/analytics')
 def portfolio_analytics():
     """
     User portfolio profit/loss data and growth trends
-    :return: JSON with all analytics data
+    # CHANGED: Simplified docstring
     """
     try:
-        if PortfolioUser.session_expired(user) == "Session has expired. Please login again":
-            return jsonify({"message": "Session has expired. Please login again."}), 403
-        else:
-            # Will start the remove an investment process
-            return jsonify({"message": "User portfolio profit/loss data and growth trends"}), 200
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401  
+        
+        # TODO: Implement actual analytics logic
+        return jsonify({"message": "User portfolio profit/loss data and growth trends"}), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "error was received"}), 403
+        return jsonify({"message": "Error occurred"}), 500 
+
+#Logout endpoint for session management
+@app.post('/api/portfolio/logout')
+def logout():
+    """
+    Logout current user
+    """
+    try:
+        session.clear()
+        return jsonify({"message": "Successfully logged out"}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Error occurred during logout"}), 500
+
+# Debug endpoint - Remove before production
+@app.get('/api/portfolio/users')
+def list_users():
+    try:
+        users = User.query.all()
+        return jsonify([{
+            "user_id": u.user_id,
+            "username": u.username,
+            "first_name": u.first_name,
+            "last_name": u.last_name
+        } for u in users]), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to fetch users"}), 500
 
 if __name__ == '__main__':
-    app.run(port=5050, debug=True)  # to open to all IP's add host='0.0.0.0', need to remove debug before production
+    with app.app_context():
+        db.create_all()
+    app.run(port=5050, debug=True) # Debug mode - Remove before production
