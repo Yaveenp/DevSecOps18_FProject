@@ -2,13 +2,20 @@ from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import psycopg2
+import os
+import json
 from flask_sqlalchemy import SQLAlchemy
+from Financial_Portfolio_Tracker import Delete_Portfolio, Put_Portfolio, Post_Portfolio, Portfolio
+from Financial_Portfolio_Tracker import Get_Market_Trends, Get_Ticker
 
 app = Flask(__name__)
 CORS(app)
 
 # ADDED: Secret key for session management
 app.secret_key = 'your-secret-key-change-in-production'
+
+# ADDED: Alpha Vantage API Key - Set this in environment variables
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'your-api-key-here')
 
 # SQLAlchemy DB config for PostgreSQL
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'
@@ -27,7 +34,21 @@ class User(db.Model):
     last_name = db.Column(db.String(50))
     last_login = db.Column(db.TIMESTAMP)
     session_expiration = db.Column(db.TIMESTAMP)
+    
+    # Relationship to portfolio files
+    portfolio_files = db.relationship('PortfolioFile', backref='user', lazy=True, cascade='all, delete-orphan')
 
+# Fixed Portfolio Files model
+class PortfolioFile(db.Model):
+    __tablename__ = 'portfolio_files'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    filename = db.Column(db.Text, nullable=False)
+    filepath = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+   
 # Create User model based on the base Portfolio User needed
 class PortfolioUser:
     def __init__(self, username: str, password: str, first_name: str, last_name: str):
@@ -58,10 +79,24 @@ class PortfolioUser:
                 new_user = User(username=username, password=password,
                                first_name=first_name, last_name=last_name)
                 db.session.add(new_user)
+                db.session.flush()  # get the user_id before commit
+                
+                # Create initial portfolio file for the new user
+                initial_portfolio = PortfolioFile(
+                    user_id=new_user.user_id,
+                    filename=f"{username}_portfolio.json",
+                    filepath=f"/uploads/{username}_portfolio.json"
+                )
+                db.session.add(initial_portfolio)
                 db.session.commit()
+                
+                # Create empty portfolio JSON file
+                self._create_empty_portfolio_file(f"/uploads/{username}_portfolio.json")
+                
                 self.user_id = new_user.user_id
                 return f'User {self.username} was successfully registered. Please login'
         except Exception as e:
+            db.session.rollback()
             print(e)
             return "Parameters are not entered correctly, please try again."
 
@@ -94,6 +129,21 @@ class PortfolioUser:
             return True  
         else:
             return False 
+    
+    def _create_empty_portfolio_file(self, filepath):
+        """
+        Create an empty portfolio JSON file for new users
+        """
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            # Create empty portfolio
+            empty_portfolio = []
+            with open(filepath, 'w') as f:
+                json.dump(empty_portfolio, f, indent=4)
+        except Exception as e:
+            print(f"Error creating portfolio file: {e}") 
 
 
 def get_current_user():
@@ -114,6 +164,16 @@ def get_current_user():
     except Exception as e:
         print(e)
         return None
+
+
+def get_user_portfolio_file_path(user_id):
+    """
+    Get the portfolio file path for a specific user
+    """
+    portfolio_file = PortfolioFile.query.filter_by(user_id=user_id).first()
+    if portfolio_file:
+        return portfolio_file.filepath
+    return None
 
 
 @app.get('/api/portfolio/health')
@@ -184,16 +244,39 @@ def signin():
 @app.get('/api/portfolio')
 def portfolio_list():
     """
-    List of investments
-    # CHANGED: Simplified docstring
+    List of investments with real-time quotes
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # TODO: Implement actual portfolio retrieval logic
-        return jsonify({"message": "portfolio", "user": current_user.username}), 200
+        # Get user's portfolio file path
+        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
+        if not portfolio_file_path:
+            return jsonify({"message": "Portfolio file not found"}), 404
+        
+        # Load portfolio and get quotes
+        try:
+            # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
+            original_file = Portfolio.PORTFOLIO_FILE if hasattr(Portfolio, 'PORTFOLIO_FILE') else None
+            Portfolio.PORTFOLIO_FILE = portfolio_file_path
+            
+            portfolio_with_quotes = Portfolio.get_portfolio_with_quotes(ALPHA_VANTAGE_API_KEY)
+            
+            # Restore original file path
+            if original_file:
+                Portfolio.PORTFOLIO_FILE = original_file
+                
+            return jsonify({
+                "message": "portfolio retrieved successfully", 
+                "user": current_user.username,
+                "portfolio": portfolio_with_quotes
+            }), 200
+            
+        except Exception as e:
+            print(f"Error loading portfolio: {e}")
+            return jsonify({"message": "Error loading portfolio data"}), 500
         
     except Exception as e:
         print(e)
@@ -203,15 +286,45 @@ def portfolio_list():
 def portfolio_add():
     """
     Add a new investment
-    # CHANGED: Simplified docstring
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401 
         
-        # TODO: Implement actual investment addition logic
-        return jsonify({"message": "Add a new investment"}), 200
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"message": "No data provided"}), 400
+        
+        ticker = request_data.get("ticker", "").upper()
+        quantity = request_data.get("quantity")
+        buy_price = request_data.get("buy_price")
+        
+        if not ticker or not quantity or not buy_price:
+            return jsonify({"message": "Missing required fields: ticker, quantity, buy_price"}), 400
+        
+        try:
+            quantity = float(quantity)
+            buy_price = float(buy_price)
+        except ValueError:
+            return jsonify({"message": "Quantity and buy_price must be numbers"}), 400
+        
+        # Get user's portfolio file path
+        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
+        if not portfolio_file_path:
+            return jsonify({"message": "Portfolio file not found"}), 404
+        
+        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
+        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
+        Portfolio.PORTFOLIO_FILE = portfolio_file_path
+        
+        result = Post_Portfolio.add_investment(ticker, quantity, buy_price)
+        
+        # Restore original file path
+        if original_file:
+            Portfolio.PORTFOLIO_FILE = original_file
+        
+        return jsonify(result), 200
         
     except Exception as e:
         print(e)
@@ -221,15 +334,49 @@ def portfolio_add():
 def portfolio_update(investment_id):
     """
     Update an investment
-    # CHANGED: Simplified docstring
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # TODO: Implement actual investment update logic
-        return jsonify({"message": "Update an investment"}), 200
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"message": "No data provided"}), 400
+        
+        quantity = request_data.get("quantity")
+        buy_price = request_data.get("buy_price")
+        
+        if quantity is not None:
+            try:
+                quantity = float(quantity)
+            except ValueError:
+                return jsonify({"message": "Quantity must be a number"}), 400
+        
+        if buy_price is not None:
+            try:
+                buy_price = float(buy_price)
+            except ValueError:
+                return jsonify({"message": "Buy price must be a number"}), 400
+        
+        # Get user's portfolio file path
+        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
+        if not portfolio_file_path:
+            return jsonify({"message": "Portfolio file not found"}), 404
+        
+        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
+        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
+        Portfolio.PORTFOLIO_FILE = portfolio_file_path
+        
+        result = Put_Portfolio.update_investment(investment_id, quantity, buy_price)
+        
+        # Restore original file path
+        if original_file:
+            Portfolio.PORTFOLIO_FILE = original_file
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result), 200
         
     except Exception as e:
         print(e)
@@ -239,15 +386,30 @@ def portfolio_update(investment_id):
 def portfolio_remove(investment_id):
     """
     Delete an investment
-    # CHANGED: Simplified docstring
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # TODO: Implement actual investment deletion logic
-        return jsonify({"message": "Delete an investment"}), 200
+        # Get user's portfolio file path
+        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
+        if not portfolio_file_path:
+            return jsonify({"message": "Portfolio file not found"}), 404
+        
+        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
+        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
+        Portfolio.PORTFOLIO_FILE = portfolio_file_path
+        
+        result = Delete_Portfolio.delete_investment(investment_id)
+        
+        # Restore original file path
+        if original_file:
+            Portfolio.PORTFOLIO_FILE = original_file
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result), 200
         
     except Exception as e:
         print(e)
@@ -257,15 +419,23 @@ def portfolio_remove(investment_id):
 def portfolio_real(ticker):
     """
     Real-time stock data for a specific ticker symbol
-    # CHANGED: Simplified docstring
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # TODO: Implement actual stock data retrieval logic
-        return jsonify({"message": "Ticker real time data", "ticker": ticker}), 200
+        ticker = ticker.upper()
+        result = Get_Ticker.get_stock_quote(ticker, ALPHA_VANTAGE_API_KEY)
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        
+        return jsonify({
+            "message": "Stock data retrieved successfully",
+            "ticker": ticker,
+            "data": result
+        }), 200
         
     except Exception as e:
         print(e)
@@ -275,15 +445,26 @@ def portfolio_real(ticker):
 def portfolio_market():
     """
     Market trends and updates
-    # CHANGED: Simplified docstring
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401 
         
-        # TODO: Implement actual market data retrieval logic
-        return jsonify({"message": "Market trends and updates"}), 200
+        # Note: The Get_Market_Trends class needs API key integration
+        # For now, return a placeholder response
+        try:
+            result = Get_Market_Trends.get_top_gainers()
+            return jsonify({
+                "message": "Market trends retrieved successfully",
+                "data": result
+            }), 200
+        except Exception as e:
+            print(f"Market trends error: {e}")
+            return jsonify({
+                "message": "Market trends service temporarily unavailable",
+                "data": []
+            }), 200
         
     except Exception as e:
         print(e)
@@ -329,11 +510,32 @@ def list_users():
             "user_id": u.user_id,
             "username": u.username,
             "first_name": u.first_name,
-            "last_name": u.last_name
+            "last_name": u.last_name,
+            "portfolio_files_count": len(u.portfolio_files)
         } for u in users]), 200
     except Exception as e:
         print(e)
         return jsonify({"message": "Failed to fetch users"}), 500
+
+# Debug endpoint for portfolio files - Remove before production
+@app.get('/api/portfolio/files')
+def list_portfolio_files():
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"message": "Please login and try again"}), 401
+            
+        files = PortfolioFile.query.filter_by(user_id=current_user.user_id).all()
+        return jsonify([{
+            "id": f.id,
+            "filename": f.filename,
+            "filepath": f.filepath,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+            "updated_at": f.updated_at.isoformat() if f.updated_at else None
+        } for f in files]), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to fetch portfolio files"}), 500
 
 if __name__ == '__main__':
     with app.app_context():
