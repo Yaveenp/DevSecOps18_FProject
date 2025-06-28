@@ -5,8 +5,12 @@ import psycopg2
 import os
 import json
 from flask_sqlalchemy import SQLAlchemy
-from Financial_Portfolio_Tracker import Delete_Portfolio, Put_Portfolio, Post_Portfolio, Portfolio
-from Financial_Portfolio_Tracker import Get_Market_Trends, Get_Ticker
+from Financial_Portfolio_Tracker.Portfolio_Management.PUT.PUT_Portfolio import Put_Portfolio
+from Financial_Portfolio_Tracker.Portfolio_Management.DELETE.DELETE_Portfolio import Delete_Portfolio
+from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
+from Financial_Portfolio_Tracker.Portfolio_Management.POST.POST_Portfolio import Post_Portfolio
+from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Market_Trends import Get_Market_Trends
+from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Ticker import Get_Ticker
 
 app = Flask(__name__)
 CORS(app)
@@ -15,7 +19,7 @@ CORS(app)
 app.secret_key = 'your-secret-key-change-in-production'
 
 # Alpha Vantage API Key - Set this in environment variables
-ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'your-api-key-here')
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
 
 # SQLAlchemy DB config for PostgreSQL
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'

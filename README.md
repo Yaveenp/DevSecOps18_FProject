@@ -89,26 +89,12 @@ DevSecOps18_FProject/
    git clone https://github.com/Yaveenp/DevSecOps18_FProject.git
    cd DevSecOps18_FProject
    ```
+2. **Using Docker Compose with buildx option to run localy**
+      ```bash
+   docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
+   ``` 
 
-2. **Set up the backend:**
-   ```bash
-   cd app/Backend
-   pip install -r requirements.txt
-   ```
-
-3. **Set up the frontend:**
-   ```bash
-   cd app/Frontend
-   npm install
-   ```
-
-4. **Run with Docker Compose:**
-   ```bash
-   cd Docker
-   docker-compose up -d
-   ```
-
-5. **Deploy to Kubernetes:**
+3. **Deploy to Kubernetes:**
    ```bash
    kubectl apply -f Postgres/
    # Add additional deployment manifests as needed

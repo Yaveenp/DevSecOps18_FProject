@@ -1,14 +1,13 @@
 import json
 import os
-from GET import Portfolio
-
-PORTFOLIO_FILE = 'portfolio.json'
+from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
 
 class Delete_Portfolio:
     '''
     Delete a investment by investment id for user
     returen: inforantion message
     '''
+
     def delete_investment(investment_id):
         portfolio = Portfolio.load_portfolio()
         new_portfolio = [inv for inv in portfolio if inv['id'] != investment_id]

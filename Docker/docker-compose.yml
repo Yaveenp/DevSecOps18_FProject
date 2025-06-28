@@ -5,6 +5,7 @@ services:
     image: postgres:15
     container_name: investment_postgres
     restart: always
+    platform: linux/amd64
     environment:
       POSTGRES_DB: investment_db
       POSTGRES_USER: admin
@@ -34,7 +35,12 @@ services:
 
   # # Optional: Flask application service (if you want to containerize the Python app too)
   # flask-app:
-  #   build: .  # Assumes you have a Dockerfile in the same directory
+  #   build:
+  #     context: .
+  #     platforms:
+  #       - linux/amd64
+  #       - linux/arm64
+  #       - windows/amd64
   #   container_name: investment_flask
   #   restart: always
   #   environment:

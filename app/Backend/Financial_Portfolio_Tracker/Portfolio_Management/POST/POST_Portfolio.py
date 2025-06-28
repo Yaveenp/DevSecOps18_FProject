@@ -1,9 +1,7 @@
 import json
 import os
 import uuid
-from GET import Portfolio
-
-PORTFOLIO_FILE = 'portfolio.json'
+from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
 
 class Post_Portfolio:
     '''

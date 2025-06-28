@@ -1,13 +1,11 @@
 import json
 import os
-from GET import Portfolio
-
-PORTFOLIO_FILE = 'portfolio.json'
+from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
 
 class Put_Portfolio:
     '''
-    Updates a 
-    returen: JSON if the ticker data
+    Updates a investment by investment id for user
+    returen: inforantion message
     '''
     def update_investment(investment_id, quantity=None, buy_price=None):
         portfolio = Portfolio.load_portfolio()
