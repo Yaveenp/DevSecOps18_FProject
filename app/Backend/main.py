@@ -53,6 +53,7 @@ class PortfolioFile(db.Model):
     file_content = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.now())
     updated_at = db.Column(db.TIMESTAMP, default=datetime.now(), onupdate=datetime.now())
+    
 
 # Portfolio Summary model for analytics storage
 class PortfolioSummary(db.Model):
@@ -128,13 +129,10 @@ class PortfolioUser:
                 initial_portfolio = PortfolioFile(
                     user_id=new_user.user_id,
                     filename=f"{username}_portfolio.json",
-                    filepath=f"/uploads/{username}_portfolio.json"
+                    file_content=[]
                 )
                 db.session.add(initial_portfolio)
                 db.session.commit()
-                
-                # Create empty portfolio JSON file
-                self._create_empty_portfolio_file(f"/uploads/{username}_portfolio.json")
                 
                 self.user_id = new_user.user_id
                 return f'User {self.username} was successfully registered. Please login'
@@ -172,22 +170,6 @@ class PortfolioUser:
             return True  
         else:
             return False 
-    
-    def _create_empty_portfolio_file(self, filepath):
-        """
-        Create an empty portfolio JSON file for new users
-        """
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            
-            # Create empty portfolio
-            empty_portfolio = []
-            with open(filepath, 'w') as f:
-                json.dump(empty_portfolio, f, indent=4)
-        except Exception as e:
-            print(f"Error creating portfolio file: {e}") 
-
 
 def get_current_user():
     """
@@ -235,9 +217,24 @@ def portfolio_summaries(api_key, portfolio_data):
             'total_gain_loss_percent': 0.0
         }
     
-    # Create Portfolio instance with JSON data
-    portfolio_instance = Portfolio()
-    portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(api_key, portfolio_data)
+    # Extract stocks from portfolio data structure
+    stocks = []
+    if isinstance(portfolio_data, dict) and 'holdings' in portfolio_data:
+        stocks = portfolio_data['holdings']
+    elif isinstance(portfolio_data, list):
+        stocks = portfolio_data
+    else:
+        return {
+            'error': 'Invalid portfolio data format',
+            'total_stocks': 0,
+            'total_value': 0.0,
+            'total_investment': 0.0,
+            'total_gain_loss': 0.0,
+            'total_gain_loss_percent': 0.0
+        }
+    
+    # Use the stocks directly since they already have current prices
+    portfolio_with_quotes = stocks
     
     if not portfolio_with_quotes:
         return {
@@ -490,12 +487,13 @@ def portfolio_list():
         try:
             # Create Portfolio instance and get quotes from JSON data
             portfolio_instance = Portfolio()
+        
             portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(ALPHA_VANTAGE_API_KEY, portfolio_data)
                 
             return jsonify({
                 "message": "portfolio retrieved successfully", 
                 "user": current_user.username,
-                "portfolio": portfolio_with_quotes
+                "portfolio": json.dumps(portfolio_with_quotes)
             }), 200
             
         except Exception as e:
@@ -661,7 +659,7 @@ def portfolio_real(ticker):
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.get('/api/stocks/market')
+@app.get('/api/stocks/market') # NEEED TO FIX
 def portfolio_market():
     """
     Market trends and updates
