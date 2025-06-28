@@ -11,10 +11,10 @@ from Financial_Portfolio_Tracker import Get_Market_Trends, Get_Ticker
 app = Flask(__name__)
 CORS(app)
 
-# ADDED: Secret key for session management
+# Secret key for session management
 app.secret_key = 'your-secret-key-change-in-production'
 
-# ADDED: Alpha Vantage API Key - Set this in environment variables
+# Alpha Vantage API Key - Set this in environment variables
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'your-api-key-here')
 
 # SQLAlchemy DB config for PostgreSQL
@@ -37,14 +37,53 @@ class User(db.Model):
     
     # Relationship to portfolio files
     portfolio_files = db.relationship('PortfolioFile', backref='user', lazy=True, cascade='all, delete-orphan')
+    # Relationship to portfolio summaries
+    portfolio_summaries = db.relationship('PortfolioSummary', backref='user', lazy=True, cascade='all, delete-orphan')
 
-# Fixed Portfolio Files model
+# Portfolio Files model
 class PortfolioFile(db.Model):
     __tablename__ = 'portfolio_files'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     filename = db.Column(db.Text, nullable=False)
     filepath = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Portfolio Summary model for analytics storage
+class PortfolioSummary(db.Model):
+    __tablename__ = 'portfolio_summaries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    
+    # Portfolio Overview
+    total_stocks = db.Column(db.Integer, default=0)
+    total_value = db.Column(db.Numeric(15, 2), default=0.0)
+    total_investment = db.Column(db.Numeric(15, 2), default=0.0)
+    total_gain_loss = db.Column(db.Numeric(15, 2), default=0.0)
+    total_gain_loss_percent = db.Column(db.Numeric(8, 4), default=0.0)
+    avg_position_size = db.Column(db.Numeric(15, 2), default=0.0)
+    
+    # Performance Metrics
+    winning_stocks = db.Column(db.Integer, default=0)
+    losing_stocks = db.Column(db.Integer, default=0)
+    win_rate = db.Column(db.Numeric(8, 4), default=0.0)
+    best_performer_ticker = db.Column(db.String(10))
+    best_performer_gain = db.Column(db.Numeric(15, 2))
+    best_performer_percent = db.Column(db.Numeric(8, 4))
+    worst_performer_ticker = db.Column(db.String(10))
+    worst_performer_gain = db.Column(db.Numeric(15, 2))
+    worst_performer_percent = db.Column(db.Numeric(8, 4))
+    
+    # Risk Metrics
+    largest_position_weight = db.Column(db.Numeric(8, 4), default=0.0)
+    concentration_risk = db.Column(db.String(20), default='Low')
+    
+    # JSON fields for complex data
+    top_holdings = db.Column(db.JSON)
+    stock_breakdown = db.Column(db.JSON)
+    
+    # Timestamps
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -174,6 +213,189 @@ def get_user_portfolio_file_path(user_id):
     if portfolio_file:
         return portfolio_file.filepath
     return None
+
+
+def portfolio_summaries(api_key, portfolio_file_path):
+    """
+    Calculate comprehensive portfolio analytics and summaries
+    return: Dictionary with portfolio analytics data
+    """
+    # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
+    original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
+    Portfolio.PORTFOLIO_FILE = portfolio_file_path
+    
+    try:
+        portfolio_data = Portfolio.get_portfolio_with_quotes(api_key)
+    finally:
+        # Restore original file path
+        if original_file:
+            Portfolio.PORTFOLIO_FILE = original_file
+    
+    if not portfolio_data:
+        return {
+            'error': 'No portfolio data available',
+            'total_stocks': 0,
+            'total_value': 0.0,
+            'total_investment': 0.0,
+            'total_gain_loss': 0.0,
+            'total_gain_loss_percent': 0.0
+        }
+    
+    # Initialize summary variables
+    total_value = 0.0
+    total_investment = 0.0
+    total_gain_loss = 0.0
+    winning_stocks = 0
+    losing_stocks = 0
+    best_performer = None
+    worst_performer = None
+    stock_breakdown = []
+    
+    # Calculate portfolio metrics
+    for stock in portfolio_data:
+        # Basic calculations
+        investment_amount = stock['buy_price'] * stock['quantity']
+        current_value = stock['value']
+        gain_loss = stock['gain']
+        
+        # Accumulate totals
+        total_value += current_value
+        total_investment += investment_amount
+        total_gain_loss += gain_loss
+        
+        # Count winners and losers
+        if gain_loss > 0:
+            winning_stocks += 1
+        elif gain_loss < 0:
+            losing_stocks += 1
+        
+        # Track best and worst performers
+        try:
+            change_percent = float(stock['change_percent'].replace('%', '')) if isinstance(stock['change_percent'], str) else float(stock['change_percent'])
+        except (ValueError, AttributeError):
+            change_percent = 0.0
+        
+        stock_performance = {
+            'ticker': stock['ticker'],
+            'gain_loss': gain_loss,
+            'change_percent': change_percent,
+            'value': current_value,
+            'weight': 0  # Will calculate after total_value is known
+        }
+        
+        if best_performer is None or change_percent > best_performer['change_percent']:
+            best_performer = stock_performance.copy()
+        
+        if worst_performer is None or change_percent < worst_performer['change_percent']:
+            worst_performer = stock_performance.copy()
+        
+        stock_breakdown.append(stock_performance)
+    
+    # Calculate portfolio-level metrics
+    total_gain_loss_percent = (total_gain_loss / total_investment * 100) if total_investment > 0 else 0.0
+    
+    # Calculate stock weights in portfolio
+    for stock in stock_breakdown:
+        stock['weight'] = (stock['value'] / total_value * 100) if total_value > 0 else 0.0
+    
+    # Sort stocks by value for additional insights
+    top_holdings = sorted(stock_breakdown, key=lambda x: x['value'], reverse=True)[:5]
+    
+    # Calculate diversification metrics
+    total_stocks = len(portfolio_data)
+    avg_position_size = (total_value / total_stocks) if total_stocks > 0 else 0.0
+    
+    # Prepare summary response
+    summary = {
+        'timestamp': datetime.now().isoformat(),
+        'portfolio_overview': {
+            'total_stocks': total_stocks,
+            'total_value': round(total_value, 2),
+            'total_investment': round(total_investment, 2),
+            'total_gain_loss': round(total_gain_loss, 2),
+            'total_gain_loss_percent': round(total_gain_loss_percent, 2),
+            'avg_position_size': round(avg_position_size, 2)
+        },
+        'performance_metrics': {
+            'winning_stocks': winning_stocks,
+            'losing_stocks': losing_stocks,
+            'win_rate': round((winning_stocks / total_stocks * 100), 2) if total_stocks > 0 else 0.0,
+            'best_performer': best_performer,
+            'worst_performer': worst_performer
+        },
+        'top_holdings': top_holdings,
+        'stock_breakdown': stock_breakdown,
+        'risk_metrics': {
+            'largest_position_weight': max([s['weight'] for s in stock_breakdown]) if stock_breakdown else 0.0,
+            'concentration_risk': 'High' if any(s['weight'] > 20 for s in stock_breakdown) else 'Medium' if any(s['weight'] > 10 for s in stock_breakdown) else 'Low'
+        }
+    }
+    
+    return summary
+
+
+def save_portfolio_summary_to_db(user_id, summary_data):
+    """
+    Save portfolio summary to database
+    """
+    try:
+        # Check if summary already exists for today
+        today = datetime.now().date()
+        existing_summary = PortfolioSummary.query.filter_by(user_id=user_id).filter(
+            db.func.date(PortfolioSummary.created_at) == today
+        ).first()
+        
+        if existing_summary:
+            # Update existing summary
+            summary_obj = existing_summary
+        else:
+            # Create new summary
+            summary_obj = PortfolioSummary(user_id=user_id)
+            db.session.add(summary_obj)
+        
+        # Update fields
+        overview = summary_data.get('portfolio_overview', {})
+        performance = summary_data.get('performance_metrics', {})
+        risk = summary_data.get('risk_metrics', {})
+        
+        summary_obj.total_stocks = overview.get('total_stocks', 0)
+        summary_obj.total_value = overview.get('total_value', 0.0)
+        summary_obj.total_investment = overview.get('total_investment', 0.0)
+        summary_obj.total_gain_loss = overview.get('total_gain_loss', 0.0)
+        summary_obj.total_gain_loss_percent = overview.get('total_gain_loss_percent', 0.0)
+        summary_obj.avg_position_size = overview.get('avg_position_size', 0.0)
+        
+        summary_obj.winning_stocks = performance.get('winning_stocks', 0)
+        summary_obj.losing_stocks = performance.get('losing_stocks', 0)
+        summary_obj.win_rate = performance.get('win_rate', 0.0)
+        
+        best_performer = performance.get('best_performer', {})
+        if best_performer:
+            summary_obj.best_performer_ticker = best_performer.get('ticker')
+            summary_obj.best_performer_gain = best_performer.get('gain_loss')
+            summary_obj.best_performer_percent = best_performer.get('change_percent')
+        
+        worst_performer = performance.get('worst_performer', {})
+        if worst_performer:
+            summary_obj.worst_performer_ticker = worst_performer.get('ticker')
+            summary_obj.worst_performer_gain = worst_performer.get('gain_loss')
+            summary_obj.worst_performer_percent = worst_performer.get('change_percent')
+        
+        summary_obj.largest_position_weight = risk.get('largest_position_weight', 0.0)
+        summary_obj.concentration_risk = risk.get('concentration_risk', 'Low')
+        
+        summary_obj.top_holdings = summary_data.get('top_holdings', [])
+        summary_obj.stock_breakdown = summary_data.get('stock_breakdown', [])
+        
+        summary_obj.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        return True
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving portfolio summary: {e}")
+        return False
 
 
 @app.get('/api/portfolio/health')
@@ -473,69 +695,87 @@ def portfolio_market():
 @app.get('/api/portfolio/analytics')
 def portfolio_analytics():
     """
-    User portfolio profit/loss data and growth trends
-    # CHANGED: Simplified docstring
+    User portfolio profit/loss data and growth trends with comprehensive analytics
     """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401  
         
-        # TODO: Implement actual analytics logic
-        return jsonify({"message": "User portfolio profit/loss data and growth trends"}), 200
+        # Get user's portfolio file path
+        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
+        if not portfolio_file_path:
+            return jsonify({"message": "Portfolio file not found"}), 404
+        
+        # Calculate portfolio analytics
+        try:
+            analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_file_path)
+            
+            if 'error' in analytics_data:
+                return jsonify({
+                    "message": "Portfolio analytics calculated successfully",
+                    "user": current_user.username,
+                    "analytics": analytics_data
+                }), 200
+            
+            # Save analytics to database
+            save_success = save_portfolio_summary_to_db(current_user.user_id, analytics_data)
+            if not save_success:
+                print("Warning: Failed to save portfolio summary to database")
+            
+            return jsonify({
+                "message": "Portfolio analytics calculated successfully",
+                "user": current_user.username,
+                "analytics": analytics_data
+            }), 200
+            
+        except Exception as e:
+            print(f"Error calculating portfolio analytics: {e}")
+            return jsonify({"message": "Error calculating portfolio analytics"}), 500
         
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500 
 
-#Logout endpoint for session management
-@app.post('/api/portfolio/logout')
-def logout():
+@app.get('/api/portfolio/analytics/history')
+def portfolio_analytics_history():
     """
-    Logout current user
+    Get historical portfolio analytics for the current user
     """
-    try:
-        session.clear()
-        return jsonify({"message": "Successfully logged out"}), 200
-    except Exception as e:
-        print(e)
-        return jsonify({"message": "Error occurred during logout"}), 500
-
-# Debug endpoint - Remove before production
-@app.get('/api/portfolio/users')
-def list_users():
-    try:
-        users = User.query.all()
-        return jsonify([{
-            "user_id": u.user_id,
-            "username": u.username,
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "portfolio_files_count": len(u.portfolio_files)
-        } for u in users]), 200
-    except Exception as e:
-        print(e)
-        return jsonify({"message": "Failed to fetch users"}), 500
-
-# Debug endpoint for portfolio files - Remove before production
-@app.get('/api/portfolio/files')
-def list_portfolio_files():
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
-            
-        files = PortfolioFile.query.filter_by(user_id=current_user.user_id).all()
-        return jsonify([{
-            "id": f.id,
-            "filename": f.filename,
-            "filepath": f.filepath,
-            "created_at": f.created_at.isoformat() if f.created_at else None,
-            "updated_at": f.updated_at.isoformat() if f.updated_at else None
-        } for f in files]), 200
+        
+        # Get historical summaries for the user
+        summaries = PortfolioSummary.query.filter_by(user_id=current_user.user_id).order_by(
+            PortfolioSummary.created_at.desc()
+        ).limit(30).all()  # Get last 30 days
+        
+        history_data = []
+        for summary in summaries:
+            history_data.append({
+                'date': summary.created_at.isoformat(),
+                'total_value': float(summary.total_value),
+                'total_investment': float(summary.total_investment),
+                'total_gain_loss': float(summary.total_gain_loss),
+                'total_gain_loss_percent': float(summary.total_gain_loss_percent),
+                'total_stocks': summary.total_stocks,
+                'winning_stocks': summary.winning_stocks,
+                'losing_stocks': summary.losing_stocks,
+                'win_rate': float(summary.win_rate),
+                'concentration_risk': summary.concentration_risk
+            })
+        
+        return jsonify({
+            "message": "Portfolio analytics history retrieved successfully",
+            "user": current_user.username,
+            "history": history_data
+        }), 200
+        
     except Exception as e:
         print(e)
-        return jsonify({"message": "Failed to fetch portfolio files"}), 500
+        return jsonify({"message": "Error occurred"}), 500
 
 if __name__ == '__main__':
     with app.app_context():

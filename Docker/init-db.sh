@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e
 
@@ -6,6 +5,7 @@ echo "Creating tables in investment_db..."
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
 
+  -- Create users table
   CREATE TABLE IF NOT EXISTS users (
       user_id SERIAL PRIMARY KEY,
       username VARCHAR(50) UNIQUE NOT NULL,
@@ -16,6 +16,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       session_expiration TIMESTAMP
   );
 
+  -- Create portfolio_files table
   CREATE TABLE IF NOT EXISTS portfolio_files (
       id SERIAL PRIMARY KEY,
       user_id INT NOT NULL,
@@ -26,6 +27,62 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       FOREIGN KEY (user_id) REFERENCES users(user_id)
   );
 
+  -- Create stocks table for individual stock holdings (optional - mainly for reference)
+  CREATE TABLE IF NOT EXISTS stocks (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      ticker VARCHAR(10) NOT NULL,
+      quantity DECIMAL(10,2) NOT NULL,
+      buy_price DECIMAL(10,2) NOT NULL,
+      current_price DECIMAL(10,2),
+      value DECIMAL(15,2),
+      gain DECIMAL(15,2),
+      change_percent DECIMAL(5,2),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+  );
+
+  -- Create portfolio_summaries table (note: plural name to match Python model)
+  CREATE TABLE IF NOT EXISTS portfolio_summaries (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL,
+      
+      -- Portfolio Overview
+      total_stocks INTEGER DEFAULT 0,
+      total_value DECIMAL(15,2) DEFAULT 0.0,
+      total_investment DECIMAL(15,2) DEFAULT 0.0,
+      total_gain_loss DECIMAL(15,2) DEFAULT 0.0,
+      total_gain_loss_percent DECIMAL(8,4) DEFAULT 0.0,
+      avg_position_size DECIMAL(15,2) DEFAULT 0.0,
+      
+      -- Performance Metrics
+      winning_stocks INTEGER DEFAULT 0,
+      losing_stocks INTEGER DEFAULT 0,
+      win_rate DECIMAL(8,4) DEFAULT 0.0,
+      best_performer_ticker VARCHAR(10),
+      best_performer_gain DECIMAL(15,2),
+      best_performer_percent DECIMAL(8,4),
+      worst_performer_ticker VARCHAR(10),
+      worst_performer_gain DECIMAL(15,2),
+      worst_performer_percent DECIMAL(8,4),
+      
+      -- Risk Metrics
+      largest_position_weight DECIMAL(8,4) DEFAULT 0.0,
+      concentration_risk VARCHAR(20) DEFAULT 'Low',
+      
+      -- JSON fields for complex data
+      top_holdings JSON,
+      stock_breakdown JSON,
+      
+      -- Timestamps
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      
+      FOREIGN KEY (user_id) REFERENCES users(user_id)
+  );
+
+  -- Insert test users
   INSERT INTO users (username, password, first_name, last_name, last_login, session_expiration)
   VALUES
     ('alex', 'pass123', 'Alex', 'Wonderland', 
@@ -34,12 +91,74 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
      NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour 45 minutes')
   ON CONFLICT (username) DO NOTHING;
 
+  -- Insert portfolio files
   INSERT INTO portfolio_files (user_id, filename, filepath, created_at, updated_at)
   VALUES
-    (1, 'alex_portfolio.csv', '/uploads/alex_portfolio.csv', 
+    (1, 'alex_portfolio.json', '/uploads/alex_portfolio.json', 
      NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours'),
-    (2, 'zoher_investments.xlsx', '/uploads/zoher_investments.xlsx',
+    (2, 'zoher_portfolio.json', '/uploads/zoher_portfolio.json',
      NOW() - INTERVAL '3 days', NOW() - INTERVAL '1 day')
   ON CONFLICT DO NOTHING;
 
+  -- Insert Alex's portfolio stocks (optional - for reference only)
+  INSERT INTO stocks (user_id, ticker, quantity, buy_price, current_price, value, gain, change_percent, created_at, updated_at)
+  VALUES
+    (1, 'AAPL', 50.00, 150.25, 175.80, 8790.00, 1277.50, 17.02, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour'),
+    (1, 'GOOGL', 15.00, 2650.00, 2720.45, 40806.75, 1056.75, 2.66, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour'),
+    (1, 'MSFT', 30.00, 285.90, 295.40, 8862.00, 285.00, 3.32, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour'),
+    (1, 'TSLA', 25.00, 220.15, 198.50, 4962.50, -541.25, -9.83, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour'),
+    (1, 'NVDA', 20.00, 450.30, 485.75, 9715.00, 709.00, 7.87, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour')
+  ON CONFLICT DO NOTHING;
+
+  -- Insert Zoher's portfolio stocks (optional - for reference only)
+  INSERT INTO stocks (user_id, ticker, quantity, buy_price, current_price, value, gain, change_percent, created_at, updated_at)
+  VALUES
+    (2, 'AMZN', 12.00, 3100.50, 3245.20, 38942.40, 1736.40, 4.66, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
+    (2, 'META', 40.00, 325.75, 342.10, 13684.00, 654.00, 5.02, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
+    (2, 'NFLX', 18.00, 385.40, 410.65, 7391.70, 454.50, 6.55, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
+    (2, 'AMD', 35.00, 95.20, 88.75, 3106.25, -225.75, -6.78, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
+    (2, 'CRM', 22.00, 210.80, 225.30, 4956.60, 319.00, 6.88, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
+    (2, 'PYPL', 28.00, 78.90, 82.45, 2308.60, 99.40, 4.50, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours')
+  ON CONFLICT DO NOTHING;
+
+  -- Insert sample portfolio summaries
+  INSERT INTO portfolio_summaries (
+      user_id, total_stocks, total_value, total_investment, 
+      total_gain_loss, total_gain_loss_percent, avg_position_size,
+      winning_stocks, losing_stocks, win_rate,
+      best_performer_ticker, best_performer_gain, best_performer_percent,
+      worst_performer_ticker, worst_performer_gain, worst_performer_percent,
+      largest_position_weight, concentration_risk,
+      created_at, updated_at
+  )
+  VALUES
+    (1, 5, 73136.25, 70450.25, 2686.00, 3.81, 14627.25,
+     4, 1, 80.00,
+     'AAPL', 1277.50, 17.02,
+     'TSLA', -541.25, -9.83,
+     55.80, 'High',
+     NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour'),
+    (2, 6, 70389.55, 67352.00, 3037.55, 4.51, 11731.59,
+     5, 1, 83.33,
+     'CRM', 319.00, 6.88,
+     'AMD', -225.75, -6.78,
+     55.32, 'High',
+     NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours')
+  ON CONFLICT DO NOTHING;
+
+  -- Create indexes for better performance
+  CREATE INDEX IF NOT EXISTS idx_stocks_user_id ON stocks(user_id);
+  CREATE INDEX IF NOT EXISTS idx_stocks_ticker ON stocks(ticker);
+  CREATE INDEX IF NOT EXISTS idx_portfolio_files_user_id ON portfolio_files(user_id);
+  CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_user_id ON portfolio_summaries(user_id);
+
+  -- Grant necessary permissions
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $POSTGRES_USER;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO $POSTGRES_USER;
+
 EOSQL
+
+echo "Database initialization completed successfully!"
+echo "Created tables: users, portfolio_files, stocks, portfolio_summaries"
+echo "Inserted test data for users: alex, zoher"
+echo "Portfolio data loaded for both test users"
