@@ -1,24 +1,34 @@
 import json
-import os
 import requests
 import datetime
-
-PORTFOLIO_FILE = 'portfolio.json'
 
 class Portfolio:
     '''
     Get portfolio for a user
-    returen: JSON of portfolio with quotes for user
+    return: JSON of portfolio with quotes for user
     '''
-    def __init__(self, PORTFOLIO_FILE: json):
-        self.PORTFOLIO_FILE = PORTFOLIO_FILE
+    def __init__(self, portfolio_file: str = None, portfolio_data: dict = None):
+        self.PORTFOLIO_FILE = portfolio_file
+        self.portfolio_data = portfolio_data
         
-    def load_portfolio():
-        if os.path.exists(PORTFOLIO_FILE):
-            with open(PORTFOLIO_FILE, 'r') as f:
-                return json.load(f)
-        return []
+    def load_portfolio(self):
+        """Load portfolio from file or use provided data"""
+        print("start load_portfolio")
+        
+        # If portfolio data is provided directly, use it
+        if self.portfolio_data is not None:
+            print("Using provided portfolio data")
+            return self.portfolio_data
+        
+        # if self.PORTFOLIO_FILE:
+        #     try:
+        #         with open(self.PORTFOLIO_FILE, 'r') as f:
+        #             return json.load(f)
+        #     except FileNotFoundError:
+        #         return []
+        # return []
 
+    @staticmethod
     def get_stock_quote(symbol, api_key):
         url = 'https://www.alphavantage.co/query'
         params = {
@@ -30,12 +40,19 @@ class Portfolio:
         data = response.json()
         return data.get('Global Quote', {})
 
-    def save_portfolio(portfolio):
-        with open(PORTFOLIO_FILE, 'w') as f:
-            json.dump(portfolio, f, indent=4)
+    def save_portfolio(self, portfolio):
+        """Save portfolio to file (only works if portfolio_file is set)"""
+        if self.PORTFOLIO_FILE:
+            with open(self.PORTFOLIO_FILE, 'w') as f:
+                json.dump(portfolio, f, indent=4)
+        else:
+            # If no file path, update the internal data
+            self.portfolio_data = portfolio
 
-    def get_portfolio_with_quotes(api_key):
-        portfolio = Portfolio.load_portfolio()
+    def get_portfolio_with_quotes(self, api_key):
+        """Get portfolio with current stock quotes"""
+        portfolio = self.load_portfolio()
+        print(portfolio)
         results = []
 
         for stock in portfolio:
@@ -58,14 +75,60 @@ class Portfolio:
 
         return results
 
-def portfolio_summaries(api_key):
+    def get_portfolio_with_quotes_from_data(self, api_key, portfolio_data):
+        """Get portfolio with quotes from provided data"""
+        print("Getting portfolio with quotes from data")
+        results = []
+
+        for stock in portfolio_data:
+            quote = Portfolio.get_stock_quote(stock['ticker'], api_key)
+            if quote:
+                price = float(quote.get('05. price', 0))
+                change_pct = quote.get('10. change percent', 'N/A')
+                current_value = round(price * stock['quantity'], 2)
+                gain = round((price - stock['buy_price']) * stock['quantity'], 2)
+                results.append({
+                    'id': stock['id'],
+                    'ticker': stock['ticker'],
+                    'quantity': stock['quantity'],
+                    'buy_price': stock['buy_price'],
+                    'current_price': price,
+                    'value': current_value,
+                    'gain': gain,
+                    'change_percent': change_pct
+                })
+
+        return results
+
+    @classmethod
+    def get_portfolio_with_quotes_static(cls, api_key):
+        """
+        Static method that uses the class-level PORTFOLIO_FILE attribute
+        This is for backward compatibility with your Flask app
+        """
+        if not hasattr(cls, 'PORTFOLIO_FILE') or not cls.PORTFOLIO_FILE:
+            return []
+        
+        portfolio_instance = cls(cls.PORTFOLIO_FILE)
+        return portfolio_instance.get_portfolio_with_quotes(api_key)
+
+def portfolio_summaries(api_key, portfolio_data):
     """
     Calculate comprehensive portfolio analytics and summaries
+    portfolio_data: Either file path (str) or portfolio data (list/dict)
     return: Dictionary with portfolio analytics data
     """
-    portfolio_data = Portfolio.get_portfolio_with_quotes(api_key)
+    # Handle both file path and direct data
+    if isinstance(portfolio_data, str):
+        # It's a file path (backward compatibility)
+        portfolio_instance = Portfolio(portfolio_file=portfolio_data)
+        portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes(api_key)
+    else:
+        # It's direct portfolio data
+        portfolio_instance = Portfolio()
+        portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(api_key, portfolio_data)
     
-    if not portfolio_data:
+    if not portfolio_with_quotes:
         return {
             'error': 'No portfolio data available',
             'total_stocks': 0,
@@ -86,7 +149,7 @@ def portfolio_summaries(api_key):
     stock_breakdown = []
     
     # Calculate portfolio metrics
-    for stock in portfolio_data:
+    for stock in portfolio_with_quotes:
         # Basic calculations
         investment_amount = stock['buy_price'] * stock['quantity']
         current_value = stock['value']
@@ -136,12 +199,12 @@ def portfolio_summaries(api_key):
     top_holdings = sorted(stock_breakdown, key=lambda x: x['value'], reverse=True)[:5]
     
     # Calculate diversification metrics
-    total_stocks = len(portfolio_data)
+    total_stocks = len(portfolio_with_quotes)
     avg_position_size = (total_value / total_stocks) if total_stocks > 0 else 0.0
     
     # Prepare summary response
     summary = {
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.datetime.now().isoformat(),
         'portfolio_overview': {
             'total_stocks': total_stocks,
             'total_value': round(total_value, 2),
@@ -166,6 +229,3 @@ def portfolio_summaries(api_key):
     }
     
     return summary
-
-if __name__ == '__main__':
-    Portfolio.get_portfolio_with_quotes()

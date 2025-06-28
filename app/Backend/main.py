@@ -51,8 +51,8 @@ class PortfolioFile(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     filename = db.Column(db.Text, nullable=False)
     filepath = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
-    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.now())
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.now(), onupdate=datetime.now())
 
 # Portfolio Summary model for analytics storage
 class PortfolioSummary(db.Model):
@@ -197,7 +197,7 @@ def get_current_user():
         return None
     
     try:
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
         if user and user.session_expiration and user.session_expiration > datetime.now():
             return user
         else:
@@ -219,21 +219,15 @@ def get_user_portfolio_file_path(user_id):
     return None
 
 
+
 def portfolio_summaries(api_key, portfolio_file_path):
     """
     Calculate comprehensive portfolio analytics and summaries
     return: Dictionary with portfolio analytics data
     """
-    # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
-    original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
-    Portfolio.PORTFOLIO_FILE = portfolio_file_path
-    
-    try:
-        portfolio_data = Portfolio.get_portfolio_with_quotes(api_key)
-    finally:
-        # Restore original file path
-        if original_file:
-            Portfolio.PORTFOLIO_FILE = original_file
+    # Create Portfolio instance with the file path
+    portfolio_instance = Portfolio(portfolio_file_path)
+    portfolio_data = portfolio_instance.get_portfolio_with_quotes(api_key)
     
     if not portfolio_data:
         return {
@@ -484,15 +478,9 @@ def portfolio_list():
         
         # Load portfolio and get quotes
         try:
-            # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
-            original_file = Portfolio.PORTFOLIO_FILE if hasattr(Portfolio, 'PORTFOLIO_FILE') else None
-            Portfolio.PORTFOLIO_FILE = portfolio_file_path
-            
-            portfolio_with_quotes = Portfolio.get_portfolio_with_quotes(ALPHA_VANTAGE_API_KEY)
-            
-            # Restore original file path
-            if original_file:
-                Portfolio.PORTFOLIO_FILE = original_file
+            # Create Portfolio instance with the user's portfolio file
+            portfolio_instance = Portfolio(portfolio_file_path)
+            portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes(ALPHA_VANTAGE_API_KEY)
                 
             return jsonify({
                 "message": "portfolio retrieved successfully", 

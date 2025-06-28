@@ -16,12 +16,12 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       session_expiration TIMESTAMP
   );
 
-  -- Create portfolio_files table
+  -- Create portfolio_files table (modified to store JSON content)
   CREATE TABLE IF NOT EXISTS portfolio_files (
       id SERIAL PRIMARY KEY,
       user_id INT NOT NULL,
       filename TEXT NOT NULL,
-      filepath TEXT NOT NULL,
+      file_content JSONB NOT NULL,  -- Changed from filepath to file_content
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -72,8 +72,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       concentration_risk VARCHAR(20) DEFAULT 'Low',
       
       -- JSON fields for complex data
-      top_holdings JSON,
-      stock_breakdown JSON,
+      top_holdings JSONB,
+      stock_breakdown JSONB,
       
       -- Timestamps
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -91,12 +91,136 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
      NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour 45 minutes')
   ON CONFLICT (username) DO NOTHING;
 
-  -- Insert portfolio files
-  INSERT INTO portfolio_files (user_id, filename, filepath, created_at, updated_at)
+  -- Insert portfolio files with JSON content
+  INSERT INTO portfolio_files (user_id, filename, file_content, created_at, updated_at)
   VALUES
-    (1, 'alex_portfolio.json', '/uploads/alex_portfolio.json', 
+    (1, 'alex_portfolio.json', '{
+      "portfolio_name": "Alex Tech Portfolio",
+      "total_value": 73136.25,
+      "total_investment": 70450.25,
+      "total_gain_loss": 2686.00,
+      "holdings": [
+        {
+          "ticker": "AAPL",
+          "company_name": "Apple Inc.",
+          "quantity": 50.00,
+          "buy_price": 150.25,
+          "current_price": 175.80,
+          "value": 8790.00,
+          "gain": 1277.50,
+          "change_percent": 17.02
+        },
+        {
+          "ticker": "GOOGL",
+          "company_name": "Alphabet Inc.",
+          "quantity": 15.00,
+          "buy_price": 2650.00,
+          "current_price": 2720.45,
+          "value": 40806.75,
+          "gain": 1056.75,
+          "change_percent": 2.66
+        },
+        {
+          "ticker": "MSFT",
+          "company_name": "Microsoft Corporation",
+          "quantity": 30.00,
+          "buy_price": 285.90,
+          "current_price": 295.40,
+          "value": 8862.00,
+          "gain": 285.00,
+          "change_percent": 3.32
+        },
+        {
+          "ticker": "TSLA",
+          "company_name": "Tesla Inc.",
+          "quantity": 25.00,
+          "buy_price": 220.15,
+          "current_price": 198.50,
+          "value": 4962.50,
+          "gain": -541.25,
+          "change_percent": -9.83
+        },
+        {
+          "ticker": "NVDA",
+          "company_name": "NVIDIA Corporation",
+          "quantity": 20.00,
+          "buy_price": 450.30,
+          "current_price": 485.75,
+          "value": 9715.00,
+          "gain": 709.00,
+          "change_percent": 7.87
+        }
+      ]
+    }'::jsonb, 
      NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours'),
-    (2, 'zoher_portfolio.json', '/uploads/zoher_portfolio.json',
+    (2, 'zoher_portfolio.json', '{
+      "portfolio_name": "Zoher Diversified Portfolio",
+      "total_value": 70389.55,
+      "total_investment": 67352.00,
+      "total_gain_loss": 3037.55,
+      "holdings": [
+        {
+          "ticker": "AMZN",
+          "company_name": "Amazon.com Inc.",
+          "quantity": 12.00,
+          "buy_price": 3100.50,
+          "current_price": 3245.20,
+          "value": 38942.40,
+          "gain": 1736.40,
+          "change_percent": 4.66
+        },
+        {
+          "ticker": "META",
+          "company_name": "Meta Platforms Inc.",
+          "quantity": 40.00,
+          "buy_price": 325.75,
+          "current_price": 342.10,
+          "value": 13684.00,
+          "gain": 654.00,
+          "change_percent": 5.02
+        },
+        {
+          "ticker": "NFLX",
+          "company_name": "Netflix Inc.",
+          "quantity": 18.00,
+          "buy_price": 385.40,
+          "current_price": 410.65,
+          "value": 7391.70,
+          "gain": 454.50,
+          "change_percent": 6.55
+        },
+        {
+          "ticker": "AMD",
+          "company_name": "Advanced Micro Devices Inc.",
+          "quantity": 35.00,
+          "buy_price": 95.20,
+          "current_price": 88.75,
+          "value": 3106.25,
+          "gain": -225.75,
+          "change_percent": -6.78
+        },
+        {
+          "ticker": "CRM",
+          "company_name": "Salesforce Inc.",
+          "quantity": 22.00,
+          "buy_price": 210.80,
+          "current_price": 225.30,
+          "value": 4956.60,
+          "gain": 319.00,
+          "change_percent": 6.88
+        },
+        {
+          "ticker": "PYPL",
+          "company_name": "PayPal Holdings Inc.",
+          "quantity": 28.00,
+          "buy_price": 78.90,
+          "current_price": 82.45,
+          "value": 2308.60,
+          "gain": 99.40,
+          "change_percent": 4.50
+        }
+      ]
+    }'::jsonb,
      NOW() - INTERVAL '3 days', NOW() - INTERVAL '1 day')
   ON CONFLICT DO NOTHING;
 
@@ -121,7 +245,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     (2, 'PYPL', 28.00, 78.90, 82.45, 2308.60, 99.40, 4.50, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours')
   ON CONFLICT DO NOTHING;
 
-  -- Insert sample portfolio summaries
+  -- Insert sample portfolio summaries with JSONB data
   INSERT INTO portfolio_summaries (
       user_id, total_stocks, total_value, total_investment, 
       total_gain_loss, total_gain_loss_percent, avg_position_size,
@@ -129,6 +253,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       best_performer_ticker, best_performer_gain, best_performer_percent,
       worst_performer_ticker, worst_performer_gain, worst_performer_percent,
       largest_position_weight, concentration_risk,
+      top_holdings, stock_breakdown,
       created_at, updated_at
   )
   VALUES
@@ -137,12 +262,16 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
      'AAPL', 1277.50, 17.02,
      'TSLA', -541.25, -9.83,
      55.80, 'High',
+     '[{"ticker": "GOOGL", "value": 40806.75, "weight": 55.8}, {"ticker": "NVDA", "value": 9715.00, "weight": 13.3}, {"ticker": "AAPL", "value": 8790.00, "weight": 12.0}]'::jsonb,
+     '{"tech_stocks": 5, "growth_stocks": 4, "value_stocks": 1}'::jsonb,
      NOW() - INTERVAL '1 hour', NOW() - INTERVAL '1 hour'),
     (2, 6, 70389.55, 67352.00, 3037.55, 4.51, 11731.59,
      5, 1, 83.33,
      'CRM', 319.00, 6.88,
      'AMD', -225.75, -6.78,
      55.32, 'High',
+     '[{"ticker": "AMZN", "value": 38942.40, "weight": 55.3}, {"ticker": "META", "value": 13684.00, "weight": 19.4}, {"ticker": "NFLX", "value": 7391.70, "weight": 10.5}]'::jsonb,
+     '{"tech_stocks": 6, "growth_stocks": 5, "value_stocks": 1}'::jsonb,
      NOW() - INTERVAL '2 hours', NOW() - INTERVAL '2 hours')
   ON CONFLICT DO NOTHING;
 
@@ -151,6 +280,11 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   CREATE INDEX IF NOT EXISTS idx_stocks_ticker ON stocks(ticker);
   CREATE INDEX IF NOT EXISTS idx_portfolio_files_user_id ON portfolio_files(user_id);
   CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_user_id ON portfolio_summaries(user_id);
+  
+  -- JSONB indexes for better query performance
+  CREATE INDEX IF NOT EXISTS idx_portfolio_files_content ON portfolio_files USING GIN (file_content);
+  CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_top_holdings ON portfolio_summaries USING GIN (top_holdings);
+  CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_stock_breakdown ON portfolio_summaries USING GIN (stock_breakdown);
 
   -- Grant necessary permissions
   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $POSTGRES_USER;
@@ -161,4 +295,11 @@ EOSQL
 echo "Database initialization completed successfully!"
 echo "Created tables: users, portfolio_files, stocks, portfolio_summaries"
 echo "Inserted test data for users: alex, zoher"
-echo "Portfolio data loaded for both test users"
+echo "Portfolio JSON data loaded for both test users"
+echo ""
+echo "Testing JSON queries..."
+EOSQL
+
+echo ""
+echo "JSON query tests completed successfully!"
+echo "The database is ready for use with JSON file content storage."
