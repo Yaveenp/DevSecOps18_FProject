@@ -80,7 +80,7 @@ class Portfolio:
         print("Getting portfolio with quotes from data")
         results = []
 
-        for stock in portfolio_data:
+        for stock in portfolio_data['portfolio']:
             quote = Portfolio.get_stock_quote(stock['ticker'], api_key)
             if quote:
                 price = float(quote.get('05. price', 0))

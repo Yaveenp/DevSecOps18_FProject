@@ -50,7 +50,7 @@ class PortfolioFile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     filename = db.Column(db.Text, nullable=False)
-    filepath = db.Column(db.Text, nullable=False)
+    file_content = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.now())
     updated_at = db.Column(db.TIMESTAMP, default=datetime.now(), onupdate=datetime.now())
 
@@ -209,27 +209,37 @@ def get_current_user():
         return None
 
 
-def get_user_portfolio_file_path(user_id):
+def get_user_portfolio_data(user_id):
     """
-    Get the portfolio file path for a specific user
+    Get the portfolio data for a specific user from database
     """
     portfolio_file = PortfolioFile.query.filter_by(user_id=user_id).first()
     if portfolio_file:
-        return portfolio_file.filepath
+        return portfolio_file.file_content
     return None
 
 
-
-def portfolio_summaries(api_key, portfolio_file_path):
+def portfolio_summaries(api_key, portfolio_data):
     """
     Calculate comprehensive portfolio analytics and summaries
     return: Dictionary with portfolio analytics data
     """
-    # Create Portfolio instance with the file path
-    portfolio_instance = Portfolio(portfolio_file_path)
-    portfolio_data = portfolio_instance.get_portfolio_with_quotes(api_key)
-    
+    # Use the portfolio data directly instead of creating Portfolio instance with file path
     if not portfolio_data:
+        return {
+            'error': 'No portfolio data available',
+            'total_stocks': 0,
+            'total_value': 0.0,
+            'total_investment': 0.0,
+            'total_gain_loss': 0.0,
+            'total_gain_loss_percent': 0.0
+        }
+    
+    # Create Portfolio instance with JSON data
+    portfolio_instance = Portfolio()
+    portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(api_key, portfolio_data)
+    
+    if not portfolio_with_quotes:
         return {
             'error': 'No portfolio data available',
             'total_stocks': 0,
@@ -250,7 +260,7 @@ def portfolio_summaries(api_key, portfolio_file_path):
     stock_breakdown = []
     
     # Calculate portfolio metrics
-    for stock in portfolio_data:
+    for stock in portfolio_with_quotes:
         # Basic calculations
         investment_amount = stock['buy_price'] * stock['quantity']
         current_value = stock['value']
@@ -300,7 +310,7 @@ def portfolio_summaries(api_key, portfolio_file_path):
     top_holdings = sorted(stock_breakdown, key=lambda x: x['value'], reverse=True)[:5]
     
     # Calculate diversification metrics
-    total_stocks = len(portfolio_data)
+    total_stocks = len(portfolio_with_quotes)
     avg_position_size = (total_value / total_stocks) if total_stocks > 0 else 0.0
     
     # Prepare summary response
@@ -471,16 +481,16 @@ def portfolio_list():
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # Get user's portfolio file path
-        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
-        if not portfolio_file_path:
-            return jsonify({"message": "Portfolio file not found"}), 404
+        # Get user's portfolio data from database
+        portfolio_data = get_user_portfolio_data(current_user.user_id)
+        if not portfolio_data:
+            return jsonify({"message": "Portfolio data not found"}), 404
         
         # Load portfolio and get quotes
         try:
-            # Create Portfolio instance with the user's portfolio file
-            portfolio_instance = Portfolio(portfolio_file_path)
-            portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes(ALPHA_VANTAGE_API_KEY)
+            # Create Portfolio instance and get quotes from JSON data
+            portfolio_instance = Portfolio()
+            portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(ALPHA_VANTAGE_API_KEY, portfolio_data)
                 
             return jsonify({
                 "message": "portfolio retrieved successfully", 
@@ -523,22 +533,20 @@ def portfolio_add():
         except ValueError:
             return jsonify({"message": "Quantity and buy_price must be numbers"}), 400
         
-        # Get user's portfolio file path
-        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
-        if not portfolio_file_path:
-            return jsonify({"message": "Portfolio file not found"}), 404
+        # Get user's portfolio data from database
+        portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
+        if not portfolio_file:
+            return jsonify({"message": "Portfolio not found"}), 404
         
-        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
-        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
-        Portfolio.PORTFOLIO_FILE = portfolio_file_path
+        # Add investment to portfolio data
+        result = Post_Portfolio.add_investment_to_data(portfolio_file.file_content, ticker, quantity, buy_price)
         
-        result = Post_Portfolio.add_investment(ticker, quantity, buy_price)
+        # Update the database with modified portfolio data
+        portfolio_file.file_content = result['portfolio_data']
+        portfolio_file.updated_at = datetime.now()
+        db.session.commit()
         
-        # Restore original file path
-        if original_file:
-            Portfolio.PORTFOLIO_FILE = original_file
-        
-        return jsonify(result), 200
+        return jsonify({"message": "Investment added successfully"}), 200
         
     except Exception as e:
         print(e)
@@ -573,24 +581,23 @@ def portfolio_update(investment_id):
             except ValueError:
                 return jsonify({"message": "Buy price must be a number"}), 400
         
-        # Get user's portfolio file path
-        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
-        if not portfolio_file_path:
-            return jsonify({"message": "Portfolio file not found"}), 404
+        # Get user's portfolio data from database
+        portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
+        if not portfolio_file:
+            return jsonify({"message": "Portfolio not found"}), 404
         
-        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
-        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
-        Portfolio.PORTFOLIO_FILE = portfolio_file_path
-        
-        result = Put_Portfolio.update_investment(investment_id, quantity, buy_price)
-        
-        # Restore original file path
-        if original_file:
-            Portfolio.PORTFOLIO_FILE = original_file
+        # Update investment in portfolio data
+        result = Put_Portfolio.update_investment_in_data(portfolio_file.file_content, investment_id, quantity, buy_price)
         
         if 'error' in result:
             return jsonify(result), 404
-        return jsonify(result), 200
+        
+        # Update the database with modified portfolio data
+        portfolio_file.file_content = result['portfolio_data']
+        portfolio_file.updated_at = datetime.now()
+        db.session.commit()
+        
+        return jsonify({"message": "Investment updated successfully"}), 200
         
     except Exception as e:
         print(e)
@@ -606,24 +613,23 @@ def portfolio_remove(investment_id):
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
         
-        # Get user's portfolio file path
-        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
-        if not portfolio_file_path:
-            return jsonify({"message": "Portfolio file not found"}), 404
+        # Get user's portfolio data from database
+        portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
+        if not portfolio_file:
+            return jsonify({"message": "Portfolio not found"}), 404
         
-        # Temporarily set the global PORTFOLIO_FILE for the Portfolio class
-        original_file = getattr(Portfolio, 'PORTFOLIO_FILE', None)
-        Portfolio.PORTFOLIO_FILE = portfolio_file_path
-        
-        result = Delete_Portfolio.delete_investment(investment_id)
-        
-        # Restore original file path
-        if original_file:
-            Portfolio.PORTFOLIO_FILE = original_file
+        # Delete investment from portfolio data
+        result = Delete_Portfolio.delete_investment_from_data(portfolio_file.file_content, investment_id)
         
         if 'error' in result:
             return jsonify(result), 404
-        return jsonify(result), 200
+        
+        # Update the database with modified portfolio data
+        portfolio_file.file_content = result['portfolio_data']
+        portfolio_file.updated_at = datetime.now()
+        db.session.commit()
+        
+        return jsonify({"message": "Investment deleted successfully"}), 200
         
     except Exception as e:
         print(e)
@@ -694,14 +700,14 @@ def portfolio_analytics():
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401  
         
-        # Get user's portfolio file path
-        portfolio_file_path = get_user_portfolio_file_path(current_user.user_id)
-        if not portfolio_file_path:
-            return jsonify({"message": "Portfolio file not found"}), 404
+        # Get user's portfolio data from database
+        portfolio_data = get_user_portfolio_data(current_user.user_id)
+        if not portfolio_data:
+            return jsonify({"message": "Portfolio data not found"}), 404
         
         # Calculate portfolio analytics
         try:
-            analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_file_path)
+            analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_data)
             
             if 'error' in analytics_data:
                 return jsonify({
