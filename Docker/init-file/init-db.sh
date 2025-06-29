@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+mkdir -p /uploads
+
 echo "Creating tables in investment_db..."
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
@@ -87,7 +89,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   VALUES
     ('alex', 'pass123', 'Alex', 'Wonderland', 
      NOW() - INTERVAL '30 minutes', NOW() - INTERVAL '15 minutes'),
-    ('zoher', 'secure456', 'Zoher', 'Builder', 
+    ('zohar', 'secure456', 'Zohar', 'Builder', 
      NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour 45 minutes')
   ON CONFLICT (username) DO NOTHING;
 
@@ -153,8 +155,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
       ]
     }'::jsonb, 
      NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours'),
-    (2, 'zoher_portfolio.json', '{
-      "portfolio_name": "Zoher Diversified Portfolio",
+    (2, 'zohar_portfolio.json', '{
+      "portfolio_name": "Zohar Diversified Portfolio",
       "total_value": 70389.55,
       "total_investment": 67352.00,
       "total_gain_loss": 3037.55,
@@ -234,7 +236,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     (1, 'NVDA', 20.00, 450.30, 485.75, 9715.00, 709.00, 7.87, NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 hour')
   ON CONFLICT DO NOTHING;
 
-  -- Insert Zoher's portfolio stocks (optional - for reference only)
+  -- Insert Zohar's portfolio stocks (optional - for reference only)
   INSERT INTO stocks (user_id, ticker, quantity, buy_price, current_price, value, gain, change_percent, created_at, updated_at)
   VALUES
     (2, 'AMZN', 12.00, 3100.50, 3245.20, 38942.40, 1736.40, 4.66, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 hours'),
@@ -294,12 +296,10 @@ EOSQL
 
 echo "Database initialization completed successfully!"
 echo "Created tables: users, portfolio_files, stocks, portfolio_summaries"
-echo "Inserted test data for users: alex, zoher"
+echo "Inserted test data for users: alex, zohar"
 echo "Portfolio JSON data loaded for both test users"
 echo ""
 echo "Testing JSON queries..."
-EOSQL
-
 echo ""
 echo "JSON query tests completed successfully!"
 echo "The database is ready for use with JSON file content storage."

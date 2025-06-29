@@ -15,7 +15,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - portfolio_files:/uploads
-      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./init-file/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     command: |
       bash -c "
       # Create the uploads directory for portfolio files
