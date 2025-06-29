@@ -7,8 +7,7 @@ class Portfolio:
     Get portfolio for a user
     return: JSON of portfolio with quotes for user
     '''
-    def __init__(self, portfolio_file: str = None, portfolio_data: dict = None):
-        self.PORTFOLIO_FILE = portfolio_file
+    def __init__(self,  portfolio_data: dict = None):
         self.portfolio_data = portfolio_data
         
     def load_portfolio(self):
@@ -19,14 +18,9 @@ class Portfolio:
         if self.portfolio_data is not None:
             print("Using provided portfolio data")
             return self.portfolio_data
-        
-        if self.PORTFOLIO_FILE:
-            try:
-                with open(self.PORTFOLIO_FILE, 'r') as f:
-                    return json.load(f)
-            except FileNotFoundError:
-                return []
-        return []
+        else: 
+            print(self.portfolio_data) 
+            return []
 
     @staticmethod
     def get_stock_quote(symbol, api_key):
@@ -45,12 +39,6 @@ class Portfolio:
             return {}
 
     def save_portfolio(self, portfolio):
-        """Save portfolio to file (only works if portfolio_file is set)"""
-        if self.PORTFOLIO_FILE:
-            with open(self.PORTFOLIO_FILE, 'w') as f:
-                json.dump(portfolio, f, indent=4)
-        else:
-            # If no file path, update the internal data
             self.portfolio_data = portfolio
 
     def get_portfolio_with_quotes(self, api_key):
@@ -107,28 +95,7 @@ class Portfolio:
         # Handle different data formats
         stocks = []
         
-        # Handle the case where portfolio_data is a dict with a "portfolio" key containing JSON string
-        if isinstance(portfolio_data, dict) and 'portfolio' in portfolio_data:
-            portfolio_value = portfolio_data['portfolio']
-            if isinstance(portfolio_value, str):
-                try:
-                    # Parse the JSON string
-                    stocks = json.loads(portfolio_value)
-                    print(f"Parsed JSON string from 'portfolio' key, found {len(stocks)} stocks")
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing JSON from 'portfolio' key: {e}")
-                    return results
-            else:
-                stocks = portfolio_value
-        elif isinstance(portfolio_data, str):
-            try:
-                # If it's a JSON string, parse it
-                portfolio_data = json.loads(portfolio_data)
-                stocks = portfolio_data
-            except json.JSONDecodeError:
-                print("Error: portfolio_data is not valid JSON")
-                return results
-        elif isinstance(portfolio_data, dict):
+        if isinstance(portfolio_data, dict):
             # Check if the data has a 'holdings' key
             if 'holdings' in portfolio_data:
                 stocks = portfolio_data['holdings']

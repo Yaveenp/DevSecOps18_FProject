@@ -5,6 +5,7 @@ import psycopg2
 import os
 import json
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.ext.mutable import MutableDict
 from Financial_Portfolio_Tracker.Portfolio_Management.PUT.PUT_Portfolio import Put_Portfolio
 from Financial_Portfolio_Tracker.Portfolio_Management.DELETE.DELETE_Portfolio import Delete_Portfolio
 from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
@@ -47,10 +48,9 @@ class User(db.Model):
 # Portfolio Files model
 class PortfolioFile(db.Model):
     __tablename__ = 'portfolio_files'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True, nullable=False)
     filename = db.Column(db.Text, nullable=False)
-    file_content = db.Column(db.JSON, nullable=False)
+    file_content = db.Column(MutableDict.as_mutable(db.JSON), nullable=False)
     created_at = db.Column(db.TIMESTAMP, default=datetime.now())
     updated_at = db.Column(db.TIMESTAMP, default=datetime.now(), onupdate=datetime.now())
     
@@ -58,8 +58,7 @@ class PortfolioFile(db.Model):
 # Portfolio Summary model for analytics storage
 class PortfolioSummary(db.Model):
     __tablename__ = 'portfolio_summaries'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True, nullable=False)
     
     # Portfolio Overview
     total_stocks = db.Column(db.Integer, default=0)
@@ -89,8 +88,8 @@ class PortfolioSummary(db.Model):
     stock_breakdown = db.Column(db.JSON)
     
     # Timestamps
-    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
-    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.now())
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.now(), onupdate=datetime.now())
 
    
 # Create User model based on the base Portfolio User needed
@@ -129,11 +128,16 @@ class PortfolioUser:
                 initial_portfolio = PortfolioFile(
                     user_id=new_user.user_id,
                     filename=f"{username}_portfolio.json",
-                    file_content=[]
+                    file_content={
+                        "portfolio_name": f"{username} Diversified Portfolio",
+                        "total_value": 0.0,
+                        "total_investment": 0.0,
+                        "total_gain_loss": 0.0,
+                        "holdings": []
+                    }
                 )
                 db.session.add(initial_portfolio)
                 db.session.commit()
-                
                 self.user_id = new_user.user_id
                 return f'User {self.username} was successfully registered. Please login'
         except Exception as e:
@@ -206,7 +210,6 @@ def portfolio_summaries(api_key, portfolio_data):
     Calculate comprehensive portfolio analytics and summaries
     return: Dictionary with portfolio analytics data
     """
-    # Use the portfolio data directly instead of creating Portfolio instance with file path
     if not portfolio_data:
         return {
             'error': 'No portfolio data available',
@@ -343,6 +346,7 @@ def save_portfolio_summary_to_db(user_id, summary_data):
     """
     Save portfolio summary to database
     """
+    from datetime import timezone
     try:
         # Check if summary already exists for today
         today = datetime.now().date()
@@ -392,7 +396,7 @@ def save_portfolio_summary_to_db(user_id, summary_data):
         summary_obj.top_holdings = summary_data.get('top_holdings', [])
         summary_obj.stock_breakdown = summary_data.get('stock_breakdown', [])
         
-        summary_obj.updated_at = datetime.utcnow()
+        summary_obj.updated_at = datetime.now(timezone.utc)
         
         db.session.commit()
         return True
@@ -403,7 +407,7 @@ def save_portfolio_summary_to_db(user_id, summary_data):
         return False
 
 
-@app.get('/api/portfolio/health')
+@app.get('/api/portfolio/health') # WORKS
 def health():
     try:
         return jsonify({'status': 'healthy'}), 200
@@ -411,7 +415,7 @@ def health():
         print(e)
         return jsonify({"status": "not healthy"}), 500
 
-@app.post('/api/portfolio/signup')
+@app.post('/api/portfolio/signup') # WORKS
 def signup():
     try:
         request_data = request.get_json()
@@ -440,7 +444,7 @@ def signup():
         print(e)
         return jsonify({"message": "Error occurred during registration"}), 500
 
-@app.post('/api/portfolio/signin')
+@app.post('/api/portfolio/signin') # WORKS
 def signin():
     try:
         request_data = request.get_json()
@@ -468,7 +472,7 @@ def signin():
         return jsonify({"message": "Error occurred during login"}), 500 
     
 
-@app.get('/api/portfolio')
+@app.get('/api/portfolio') # WORKS
 def portfolio_list():
     """
     List of investments with real-time quotes
@@ -487,13 +491,13 @@ def portfolio_list():
         try:
             # Create Portfolio instance and get quotes from JSON data
             portfolio_instance = Portfolio()
-        
             portfolio_with_quotes = portfolio_instance.get_portfolio_with_quotes_from_data(ALPHA_VANTAGE_API_KEY, portfolio_data)
-                
+            
+            # Always return a dict, never a list directly
             return jsonify({
                 "message": "portfolio retrieved successfully", 
                 "user": current_user.username,
-                "portfolio": json.dumps(portfolio_with_quotes)
+                "portfolio": portfolio_with_quotes
             }), 200
             
         except Exception as e:
@@ -504,7 +508,7 @@ def portfolio_list():
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.post('/api/portfolio')
+@app.post('/api/portfolio') # WORKS
 def portfolio_add():
     """
     Add a new investment
@@ -513,44 +517,94 @@ def portfolio_add():
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401 
-        
         request_data = request.get_json()
         if not request_data:
             return jsonify({"message": "No data provided"}), 400
-        
         ticker = request_data.get("ticker", "").upper()
         quantity = request_data.get("quantity")
         buy_price = request_data.get("buy_price")
-        
+        company_name = request_data.get("company_name", "")
+        current_price = request_data.get("current_price", 0.0)
+        value = request_data.get("value", 0.0)
+        gain = request_data.get("gain", 0.0)
+        change_percent = request_data.get("change_percent", 0.0)
         if not ticker or not quantity or not buy_price:
             return jsonify({"message": "Missing required fields: ticker, quantity, buy_price"}), 400
-        
         try:
             quantity = float(quantity)
             buy_price = float(buy_price)
+            current_price = float(current_price)
+            value = float(value)
+            gain = float(gain)
+            change_percent = float(change_percent)
         except ValueError:
-            return jsonify({"message": "Quantity and buy_price must be numbers"}), 400
-        
+            return jsonify({"message": "Quantity, buy_price, current_price, value, gain, and change_percent must be numbers"}), 400
         # Get user's portfolio data from database
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         if not portfolio_file:
             return jsonify({"message": "Portfolio not found"}), 404
-        
-        # Add investment to portfolio data
-        result = Post_Portfolio.add_investment_to_data(portfolio_file.file_content, ticker, quantity, buy_price)
-        
+        # Add investment to portfolio data (all fields included, always consistent)
+        result = Post_Portfolio.add_investment(
+            portfolio_file.file_content,
+            ticker,
+            quantity,
+            buy_price
+        )
+        # Ensure the last investment has all fields like database
+        if result['portfolio_data']['holdings']:
+            last_investment = result['portfolio_data']['holdings'][-1]
+            last_investment['ticker'] = ticker
+            last_investment['company_name'] = company_name if company_name else ''
+            last_investment['quantity'] = quantity
+            last_investment['buy_price'] = buy_price
+            last_investment['current_price'] = current_price if current_price else 0.0
+            last_investment['value'] = value if value else 0.0
+            last_investment['gain'] = gain if gain else 0.0
+            last_investment['change_percent'] = change_percent if change_percent else 0.0
+            if 'created_at' not in last_investment:
+                last_investment['created_at'] = datetime.now().isoformat()
+            last_investment['updated_at'] = datetime.now().isoformat()
+        # Print debug info before commit
+        print(f"[DEBUG] Updated portfolio_file.file_content before commit: {portfolio_file.file_content}")
         # Update the database with modified portfolio data
         portfolio_file.file_content = result['portfolio_data']
         portfolio_file.updated_at = datetime.now()
+        # --- Update stocks table ---
+        db.session.execute(
+            db.text("""
+                INSERT INTO stocks (user_id, ticker, quantity, buy_price, current_price, value, gain, change_percent, created_at, updated_at)
+                VALUES (:user_id, :ticker, :quantity, :buy_price, :current_price, :value, :gain, :change_percent, :created_at, :updated_at)
+                ON CONFLICT (user_id, ticker) DO UPDATE SET
+                    quantity = EXCLUDED.quantity,
+                    buy_price = EXCLUDED.buy_price,
+                    current_price = EXCLUDED.current_price,
+                    value = EXCLUDED.value,
+                    gain = EXCLUDED.gain,
+                    change_percent = EXCLUDED.change_percent,
+                    updated_at = EXCLUDED.updated_at
+            """), {
+                "user_id": current_user.user_id,
+                "ticker": ticker,
+                "quantity": quantity,
+                "buy_price": buy_price,
+                "current_price": current_price,
+                "value": value,
+                "gain": gain,
+                "change_percent": change_percent,
+                "created_at": last_investment['created_at'],
+                "updated_at": last_investment['updated_at']
+            }
+        )
         db.session.commit()
-        
+        # Update portfolio_summaries
+        analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, result['portfolio_data'])
+        save_portfolio_summary_to_db(current_user.user_id, analytics_data)
         return jsonify({"message": "Investment added successfully"}), 200
-        
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.put('/api/portfolio/<investment_id>')
+@app.put('/api/portfolio/<investment_id>') # WORKS
 def portfolio_update(investment_id):
     """
     Update an investment
@@ -559,49 +613,70 @@ def portfolio_update(investment_id):
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
-        
         request_data = request.get_json()
         if not request_data:
             return jsonify({"message": "No data provided"}), 400
-        
-        quantity = request_data.get("quantity")
-        buy_price = request_data.get("buy_price")
-        
-        if quantity is not None:
+        # Both fields are optional
+        quantity = request_data.get("quantity", None)
+        buy_price = request_data.get("buy_price", None)
+        update_quantity = quantity is not None
+        update_buy_price = buy_price is not None
+        if update_quantity:
             try:
                 quantity = float(quantity)
             except ValueError:
                 return jsonify({"message": "Quantity must be a number"}), 400
-        
-        if buy_price is not None:
+        if update_buy_price:
             try:
                 buy_price = float(buy_price)
             except ValueError:
                 return jsonify({"message": "Buy price must be a number"}), 400
-        
+        if not update_quantity and not update_buy_price:
+            return jsonify({"message": "At least one of quantity or buy_price must be provided"}), 400
         # Get user's portfolio data from database
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         if not portfolio_file:
             return jsonify({"message": "Portfolio not found"}), 404
-        
         # Update investment in portfolio data
-        result = Put_Portfolio.update_investment_in_data(portfolio_file.file_content, investment_id, quantity, buy_price)
-        
+        result = Put_Portfolio.update_investment_in_data(
+            portfolio_file.file_content,
+            investment_id,
+            quantity if update_quantity else None,
+            buy_price if update_buy_price else None
+        )
         if 'error' in result:
             return jsonify(result), 404
-        
+        # Find the updated investment for stocks table
+        updated_inv = result.get('updated_investment')
+        if updated_inv:
+            db.session.execute(
+                db.text("""
+                    UPDATE stocks SET
+                        quantity = :quantity,
+                        buy_price = :buy_price,
+                        updated_at = :updated_at
+                    WHERE user_id = :user_id AND ticker = :ticker
+                """), {
+                    "user_id": current_user.user_id,
+                    "ticker": updated_inv['ticker'],
+                    "quantity": updated_inv['quantity'],
+                    "buy_price": updated_inv['buy_price'],
+                    "updated_at": updated_inv['updated_at']
+                }
+            )
         # Update the database with modified portfolio data
         portfolio_file.file_content = result['portfolio_data']
         portfolio_file.updated_at = datetime.now()
         db.session.commit()
-        
+        # Update portfolio_summaries
+        analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, result['portfolio_data'])
+        save_portfolio_summary_to_db(current_user.user_id, analytics_data)
         return jsonify({"message": "Investment updated successfully"}), 200
-        
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.delete('/api/portfolio/<investment_id>')
+@app.delete('/api/portfolio/<investment_id>') # WORKS
 def portfolio_remove(investment_id):
     """
     Delete an investment
@@ -610,85 +685,168 @@ def portfolio_remove(investment_id):
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
-        
         # Get user's portfolio data from database
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         if not portfolio_file:
             return jsonify({"message": "Portfolio not found"}), 404
-        
-        # Delete investment from portfolio data
-        result = Delete_Portfolio.delete_investment_from_data(portfolio_file.file_content, investment_id)
-        
+        # Delete investment from portfolio data (no DB commit in CRUD)
+        result = Delete_Portfolio.delete_investment_from_data(
+            portfolio_file.file_content, investment_id
+        )
         if 'error' in result:
             return jsonify(result), 404
-        
+        # Remove from stocks table if ticker is known
+        deleted_ticker = result.get('deleted_ticker')
+        if deleted_ticker:
+            db.session.execute(
+                db.text("DELETE FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
+                {"user_id": current_user.user_id, "ticker": deleted_ticker}
+            )
         # Update the database with modified portfolio data
         portfolio_file.file_content = result['portfolio_data']
         portfolio_file.updated_at = datetime.now()
         db.session.commit()
-        
+        # Update portfolio_summaries
+        analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, result['portfolio_data'])
+        save_portfolio_summary_to_db(current_user.user_id, analytics_data)
         return jsonify({"message": "Investment deleted successfully"}), 200
-        
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500 
 
-@app.get('/api/stocks/<ticker>')
+@app.get('/api/stocks/<ticker>') # WORKS
 def portfolio_real(ticker):
     """
     Real-time stock data for a specific ticker symbol
+    Also updates the ticker data in all tables (stocks, portfolio_files, portfolio_summaries)
+    Returns the updated ticker data from all sources.
     """
+    from datetime import timezone
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401
-        
         ticker = ticker.upper()
+        # Get real-time data
         result = Get_Ticker.get_stock_quote(ticker, ALPHA_VANTAGE_API_KEY)
-        
         if 'error' in result:
             return jsonify(result), 404
-        
+        utcnow = datetime.now(timezone.utc)
+        # Fetch the stock row for this user and ticker
+        stock_row = db.session.execute(
+            db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
+            {"user_id": current_user.user_id, "ticker": ticker}
+        ).fetchone()
+        updated_stock = None
+        if stock_row:
+            col_names = stock_row.keys() if hasattr(stock_row, 'keys') else []
+            idx = lambda name, default: col_names.index(name) if name in col_names else default
+            idx_quantity = idx('quantity', 2)
+            idx_buy_price = idx('buy_price', 3)
+            idx_company_name = idx('company_name', None)
+            quantity = float(stock_row[idx_quantity])
+            buy_price = float(stock_row[idx_buy_price])
+            # Try to get company_name from stocks table if present, else fallback to result
+            company_name = None
+            if idx_company_name is not None:
+                company_name = stock_row[idx_company_name]
+            if not company_name:
+                company_name = result.get('01. company name', '')
+            # Update all fields in stocks table
+            db.session.execute(
+                db.text("""
+                    UPDATE stocks SET
+                        current_price = :current_price,
+                        value = :value,
+                        gain = :gain,
+                        change_percent = :change_percent,
+                        updated_at = :updated_at
+                    WHERE user_id = :user_id AND ticker = :ticker
+                """), {
+                    "user_id": current_user.user_id,
+                    "ticker": ticker,
+                    "current_price": float(result.get('05. price', 0)),
+                    "value": float(result.get('05. price', 0)) * quantity,
+                    "gain": (float(result.get('05. price', 0)) - buy_price) * quantity,
+                    "change_percent": float(result.get('10. change percent', '0').replace('%','')) if '10. change percent' in result else 0.0,
+                    "updated_at": utcnow
+                }
+            )
+            # Get updated stock row
+            updated_stock = db.session.execute(
+                db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
+                {"user_id": current_user.user_id, "ticker": ticker}
+            ).fetchone()
+        # Update portfolio_files JSON for this ticker
+        portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
+        updated_investment = None
+        if portfolio_file and 'holdings' in portfolio_file.file_content:
+            for inv in portfolio_file.file_content['holdings']:
+                if inv.get('ticker', '').upper() == ticker:
+                    inv['current_price'] = float(result.get('05. price', 0))
+                    inv['value'] = float(result.get('05. price', 0)) * float(inv.get('quantity', 0))
+                    inv['gain'] = (float(result.get('05. price', 0)) - float(inv.get('buy_price', 0))) * float(inv.get('quantity', 0))
+                    inv['change_percent'] = float(result.get('10. change percent', '0').replace('%','')) if '10. change percent' in result else 0.0
+                    inv['company_name'] = result.get('01. company name', inv.get('company_name', ''))
+                    inv['updated_at'] = utcnow.isoformat()
+                    updated_investment = inv
+            portfolio_file.updated_at = utcnow
+        # Commit changes to DB
+        db.session.commit()
+        # Update portfolio_summaries
+        analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_file.file_content)
+        save_portfolio_summary_to_db(current_user.user_id, analytics_data)
+        # Get updated summary for this ticker
+        summary_row = PortfolioSummary.query.filter_by(user_id=current_user.user_id).first()
+        summary_data = None
+        if summary_row:
+            summary_data = {
+                'total_stocks': summary_row.total_stocks,
+                'total_value': float(summary_row.total_value),
+                'total_investment': float(summary_row.total_investment),
+                'total_gain_loss': float(summary_row.total_gain_loss),
+                'total_gain_loss_percent': float(summary_row.total_gain_loss_percent),
+                'avg_position_size': float(summary_row.avg_position_size),
+                'updated_at': summary_row.updated_at.isoformat() if summary_row.updated_at else None
+            }
         return jsonify({
-            "message": "Stock data retrieved successfully",
+            "message": "Stock data retrieved and updated successfully",
             "ticker": ticker,
-            "data": result
+            "real_time_data": result,
+            "stocks_table": dict(updated_stock._mapping) if updated_stock else None,
+            "portfolio_file_investment": updated_investment,
+            "portfolio_summary": summary_data
         }), 200
-        
     except Exception as e:
-        print(e)
-        return jsonify({"message": "Error occurred"}), 500
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"message": f"Error occurred: {str(e)}"}), 500
 
-@app.get('/api/stocks/market') # NEEED TO FIX
+@app.get('/api/stocks/market') #Need to check if works
 def portfolio_market():
     """
-    Market trends and updates
+    Market trends and updates using Alpha Vantage API key from environment/config.
+    Returns the data as JSON on GET request.
+    Handles string result from Get_Market_Trends gracefully and avoids backend error prints.
     """
     try:
         current_user = get_current_user()
         if not current_user:
-            return jsonify({"message": "Please login and try again"}), 401 
-        
-        # Note: The Get_Market_Trends class needs API key integration
-        # For now, return a placeholder response
+            return jsonify({'error': 'Unauthorized'}), 401
+        api_key = ALPHA_VANTAGE_API_KEY
         try:
-            result = Get_Market_Trends.get_top_gainers()
-            return jsonify({
-                "message": "Market trends retrieved successfully",
-                "data": result
-            }), 200
+            result = Get_Market_Trends.get_top_gainers(api_key)
+            if isinstance(result, str):
+                return jsonify({'error': result}), 500
+            # result is a list of dicts (top 10 gainers)
+            return jsonify({'top_gainers': result}), 200
         except Exception as e:
-            print(f"Market trends error: {e}")
-            return jsonify({
-                "message": "Market trends service temporarily unavailable",
-                "data": []
-            }), 200
-        
+            print(e)
+            return jsonify({'error': 'Failed to fetch market data'}), 500
     except Exception as e:
-        print(e)
-        return jsonify({"message": "Error occurred"}), 500 
+        return jsonify({'error': 'Internal server error'}), 500 
 
-@app.get('/api/portfolio/analytics')
+@app.get('/api/portfolio/analytics') # WORKS
 def portfolio_analytics():
     """
     User portfolio profit/loss data and growth trends with comprehensive analytics
@@ -733,7 +891,7 @@ def portfolio_analytics():
         print(e)
         return jsonify({"message": "Error occurred"}), 500 
 
-@app.get('/api/portfolio/analytics/history')
+@app.get('/api/portfolio/analytics/history') # WORKS
 def portfolio_analytics_history():
     """
     Get historical portfolio analytics for the current user
