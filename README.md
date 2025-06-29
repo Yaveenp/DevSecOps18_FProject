@@ -125,7 +125,7 @@ SECRET_KEY=your_secret_key
 ```
 
 ### Database Setup
-The database initialization script is located in `Docker/init-db.sh`. It will automatically set up the required tables and initial data when running with Docker Compose.
+The database initialization script is located in `Docker/init-file/init-db.sh`. It will automatically set up the required tables and initial data when running with Docker Compose.
 
 ---
 
