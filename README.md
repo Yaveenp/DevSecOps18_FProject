@@ -58,8 +58,9 @@ DevSecOps18_FProject/
 │       ├── package.json                  # Node.js dependencies
 │       └── tsconfig.json                 # TypeScript configuration
 ├── Docker/                               # Docker configuration
-│   ├── docker-compose.yml               # Multi-container setup
-│   ├── init-db.sh                       # Database initialization script
+|   ├── init-file
+|   │   └── init-db.sh                   # Database initialization script
+│   ├── docker-compose.yml               # Multi-container setup                       
 │   └── requirements.txt                 # Docker-specific requirements
 ├── Postgres/                            # Kubernetes PostgreSQL manifests
 │   ├── postgres-configmap.yaml         # Configuration settings
