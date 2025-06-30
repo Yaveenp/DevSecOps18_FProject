@@ -508,18 +508,17 @@ def portfolio_list():
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.post('/api/portfolio') # WORKS
+@app.post('/api/portfolio')
 def portfolio_add():
-    """
-    Add a new investment
-    """
     try:
         current_user = get_current_user()
         if not current_user:
             return jsonify({"message": "Please login and try again"}), 401 
+
         request_data = request.get_json()
         if not request_data:
             return jsonify({"message": "No data provided"}), 400
+
         ticker = request_data.get("ticker", "").upper()
         quantity = request_data.get("quantity")
         buy_price = request_data.get("buy_price")
@@ -528,8 +527,10 @@ def portfolio_add():
         value = request_data.get("value", 0.0)
         gain = request_data.get("gain", 0.0)
         change_percent = request_data.get("change_percent", 0.0)
+
         if not ticker or not quantity or not buy_price:
             return jsonify({"message": "Missing required fields: ticker, quantity, buy_price"}), 400
+
         try:
             quantity = float(quantity)
             buy_price = float(buy_price)
@@ -538,38 +539,40 @@ def portfolio_add():
             gain = float(gain)
             change_percent = float(change_percent)
         except ValueError:
-            return jsonify({"message": "Quantity, buy_price, current_price, value, gain, and change_percent must be numbers"}), 400
-        # Get user's portfolio data from database
+            return jsonify({"message": "All numeric fields must be valid numbers"}), 400
+
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         if not portfolio_file:
             return jsonify({"message": "Portfolio not found"}), 404
-        # Add investment to portfolio data (all fields included, always consistent)
+
+        if any(inv.get('ticker', '').upper() == ticker for inv in portfolio_file.file_content.get('holdings', [])):
+            return jsonify({"message": f"Investment with ticker '{ticker}' already exists."}), 409
+
+        # Add investment to portfolio data
         result = Post_Portfolio.add_investment(
             portfolio_file.file_content,
             ticker,
             quantity,
             buy_price
         )
-        # Ensure the last investment has all fields like database
+
         if result['portfolio_data']['holdings']:
             last_investment = result['portfolio_data']['holdings'][-1]
             last_investment['ticker'] = ticker
-            last_investment['company_name'] = company_name if company_name else ''
+            last_investment['company_name'] = company_name
             last_investment['quantity'] = quantity
             last_investment['buy_price'] = buy_price
-            last_investment['current_price'] = current_price if current_price else 0.0
-            last_investment['value'] = value if value else 0.0
-            last_investment['gain'] = gain if gain else 0.0
-            last_investment['change_percent'] = change_percent if change_percent else 0.0
+            last_investment['current_price'] = current_price
+            last_investment['value'] = value
+            last_investment['gain'] = gain
+            last_investment['change_percent'] = change_percent
             if 'created_at' not in last_investment:
                 last_investment['created_at'] = datetime.now().isoformat()
             last_investment['updated_at'] = datetime.now().isoformat()
-        # Print debug info before commit
-        print(f"[DEBUG] Updated portfolio_file.file_content before commit: {portfolio_file.file_content}")
-        # Update the database with modified portfolio data
+
         portfolio_file.file_content = result['portfolio_data']
         portfolio_file.updated_at = datetime.now()
-        # --- Update stocks table ---
+
         db.session.execute(
             db.text("""
                 INSERT INTO stocks (user_id, ticker, quantity, buy_price, current_price, value, gain, change_percent, created_at, updated_at)
@@ -596,10 +599,12 @@ def portfolio_add():
             }
         )
         db.session.commit()
-        # Update portfolio_summaries
+
         analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, result['portfolio_data'])
         save_portfolio_summary_to_db(current_user.user_id, analytics_data)
+
         return jsonify({"message": "Investment added successfully"}), 200
+
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500
