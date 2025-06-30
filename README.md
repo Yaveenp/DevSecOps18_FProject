@@ -17,6 +17,12 @@ This application helps users track investments, calculate portfolio growth, and 
 
 ---
 
+## 🏁 Project Progression
+The project is structured to guide users and contributors through a clear progression of DevSecOps practices:
+[https://trello.com](https://trello.com/b/VTjAbok5/financial-portfolio-tracker)
+
+---
+
 ## 🧰 Technologies Used
 
 - **Python** - Backend application development
