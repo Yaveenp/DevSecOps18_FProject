@@ -10,7 +10,7 @@ class Get_Market_Trends:
     @staticmethod
     def get_top_gainers(api_key):
         # Alpha Vantage does not have a direct 'top gainers' endpoint in the free API.
-        # We'll use the 'TIME_SERIES_DAILY' for a random sample of 10 from a static list of 50 popular symbols.
+        # We'll use the 'TIME_SERIES_DAILY' for a random sample of 5 from a static list of 50 popular symbols.
         url = "https://www.alphavantage.co/query"
         symbols = [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK.B", "UNH", "V",
@@ -19,8 +19,8 @@ class Get_Market_Trends:
             "PFE", "ABT", "CSCO", "MCD", "CRM", "ACN", "DHR", "LIN", "WFC", "VZ",
             "INTC", "TXN", "NEE", "NKE", "ORCL", "AMGN", "MDT", "QCOM", "HON", "IBM"
         ]
-        # Randomly select 10 unique symbols from the list
-        selected_symbols = random.sample(symbols, 10)
+        # Randomly select 5 unique symbols from the list
+        selected_symbols = random.sample(symbols, 5)
         gainers = []
         for symbol in selected_symbols:
             params = {

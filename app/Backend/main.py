@@ -822,7 +822,7 @@ def portfolio_real(ticker):
         print(traceback.format_exc())
         return jsonify({"message": f"Error occurred: {str(e)}"}), 500
 
-@app.get('/api/stocks/market') #Need to check if works
+@app.get('/api/stocks/market') # WORKS
 def portfolio_market():
     """
     Market trends and updates using Alpha Vantage API key from environment/config.
