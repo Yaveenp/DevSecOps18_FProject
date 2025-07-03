@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import psycopg2
 import os
 import json
+import psutil
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.ext.mutable import MutableDict
 from Financial_Portfolio_Tracker.Portfolio_Management.PUT.PUT_Portfolio import Put_Portfolio
@@ -12,9 +13,27 @@ from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import P
 from Financial_Portfolio_Tracker.Portfolio_Management.POST.POST_Portfolio import Post_Portfolio
 from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Market_Trends import Get_Market_Trends
 from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Ticker import Get_Ticker
+from prometheus_client import Counter, Histogram, generate_latest, Gauge, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
 CORS(app)
+
+# Prometheus metrics
+REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ['method', 'endpoint'])
+REQUEST_LATENCY = Histogram("http_request_duration_seconds", "Request latency", ['endpoint'])
+CPU_USAGE = Gauge("container_cpu_usage_percent", "CPU usage percent")
+MEMORY_USAGE = Gauge("container_memory_usage_bytes", "Memory usage in bytes")
+
+@app.before_request
+def start_timer():
+    request.start_time = datetime.now()
+
+@app.after_request
+def record_request_data(response):
+    duration = (datetime.now() - request.start_time).total_seconds()
+    REQUEST_LATENCY.labels(request.path).observe(duration)
+    REQUEST_COUNT.labels(request.method, request.path).inc()
+    return response
 
 # Secret key for session management
 app.secret_key = 'your-secret-key-change-in-production'
@@ -23,7 +42,7 @@ app.secret_key = 'your-secret-key-change-in-production'
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
 
 # SQLAlchemy DB config for PostgreSQL
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SQLAlchemy
@@ -936,7 +955,36 @@ def portfolio_analytics_history():
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
+@app.route('/')
+def home():
+    REQUEST_COUNT.inc()
+    return 'Hello, Flask!'
+
+@app.route('/metrics')
+def metrics():
+    """Expose Prometheus metrics for monitoring
+    This endpoint provides CPU and memory usage metrics for the Flask application.
+    It uses the psutil library to gather system metrics and the prometheus_client library to format
+    them for Prometheus scraping.
+    The metrics include:
+    - CPU usage percentage
+    - Memory usage in bytes
+    The metrics are exposed at the /metrics endpoint, which can be scraped by Prometheus.
+    The metrics are updated in real-time and can be used to monitor the performance of the Flask application.
+    The metrics are in the Prometheus text format and can be scraped by Prometheus servers.
+    The metrics are updated every time the /metrics endpoint is accessed.
+    """
+    process = psutil.Process(os.getpid())
+    cpu_percent = psutil.cpu_percent(interval=None)
+    mem_info = process.memory_info().rss
+
+    CPU_USAGE.set(cpu_percent)
+    MEMORY_USAGE.set(mem_info)
+
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
 if __name__ == '__main__':
     with app.app_context():
+        print("DB-URI actually used:", app.config['SQLALCHEMY_DATABASE_URI'], flush=True)
         db.create_all()
-    app.run(port=5050, debug=True) # Debug mode - Remove before production
+    app.run(host='0.0.0.0', port=5050, debug=True) # Debug mode - Remove before production
