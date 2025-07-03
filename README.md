@@ -40,42 +40,47 @@ The project is structured to guide users and contributors through a clear progre
 
 ```
 DevSecOps18_FProject/
-├── app/                                    # Application Backend & Frontend
-│   ├── Backend/                           # Full Backend folder
-│   │   ├── Financial_Portfolio_Tracker/   # Python code for Portfolio Tracker
-│   │   │   ├── Portfolio_Management/      # CRUD Operations
-│   │   │   │   ├── DELETE/               # Delete CRUD Operations
-│   │   │   │   │   └── DELETE_Portfolio.py
-│   │   │   │   ├── GET/                  # GET CRUD Operations
-│   │   │   │   │   └── GET_Portfolio.py
-│   │   │   │   ├── POST/                 # POST CRUD Operations
-│   │   │   │   │   └── POST_Portfolio.py
-│   │   │   │   └── PUT/                  # PUT CRUD Operations
-│   │   │   │       └── PUT_Portfolio.py
-│   │   │   └── Real_Time_Stock_Data/     # Real-time Stock API Operations
-│   │   │       ├── GET_Ticker.py        # API integration for ticker data
-│   │   │       └── GET_Market_Trends.py # API integration for market trends
-│   │   ├── main.py                       # Main Flask application
-│   │   └── requirements.txt              # Python dependencies
-│   └── Frontend/                         # Full Frontend folder
-│       ├── public/
-│       │   └── index.html
-│       ├── src/                          # Node.js source files
-│       ├── package.json                  # Node.js dependencies
-│       └── tsconfig.json                 # TypeScript configuration
-├── Docker/                               # Docker configuration
-│   ├── init-file
-│   │   └── init-db.sh                   # Database initialization script
-│   ├── docker-compose.yml               # Multi-container setup                       
-│   └── requirements.txt                 # Docker-specific requirements
-├── Postgres/                            # Kubernetes PostgreSQL manifests
-│   ├── postgres-configmap.yaml         # Configuration settings
-│   ├── postgres-deployment.yaml        # Deployment specification
-│   ├── postgres-pvc.yaml              # Persistent Volume Claim
-│   ├── postgres-secret.yaml           # Database credentials
-│   └── postgres-service.yaml          # Service definition
-├── DevSecOps18 - Financial Portfolio Tracker.drawio  # Architecture diagram
-└── README.md                           # Project documentation
+├── app/                                   # Application source code (Backend & Frontend)
+│   ├── Backend/                           # Flask Backend
+│   │   ├── Financial_Portfolio_Tracker/   # Modularized CRUD & API logic
+│   │   │   ├── Portfolio_Management/      # CRUD (GET, POST, PUT, DELETE)
+│   │   │   └── Real_Time_Stock_Data/      # API integration for stock data
+│   │   ├── main.py                        # Main Flask app entry point
+│   │   ├── requirements.txt               # Python dependencies
+│   │   └── flask-dockerfile               # Dockerfile for Flask backend 
+│   └── Frontend/                          # React Frontend (TypeScript)
+│       ├── public/                        # Static index.html
+│       ├── src/                           # React components and logic
+│       ├── package.json                   # Node.js project config
+│       ├── tsconfig.json                  # TypeScript config
+│       └── react-dockerfile               # Dockerfile for React frontend 
+
+├── Docker/                                # Local development setup
+│   ├── docker-compose.yml                 # Multi-container orchestration (Postgres, Flask, React)
+│   ├── init-file/
+│   │   └── init-db.sh                     # DB initialization script (auto-run in container)
+│   └── requirements.txt                   # Optional: Docker build-specific Python deps
+
+├── Postgres/                              # Kubernetes manifests for PostgreSQL
+│   ├── postgres-configmap.yaml            # ConfigMap (DB name)
+│   ├── postgres-secret.yaml               # Secret (username/password)
+│   ├── postgres-pvc.yaml                  # Persistent Volume Claim
+│   ├── postgres-deployment.yaml           # Deployment (Postgres container)
+│   └── postgres-service.yaml              # Service (internal ClusterIP)
+
+├── kubernetes/                            # Kubernetes manifests for app stack
+│   ├── flask/                             # Flask API backend
+│   │   ├── flask-deployment.yaml
+│   │   ├── flask-service.yaml
+│   │   └── flask-secret.yaml
+│   ├── frontend/                          # React frontend app
+│   │   ├── frontend-deployment.yaml
+│   │   └── frontend-service.yaml
+
+├── Jenkinsfile                            # CI/CD pipeline for build/test/deploy
+├── DevSecOps18 - Financial Portfolio Tracker.drawio  # System architecture diagram
+└── README.md                              # Project documentation 
+
 ```
 
 ---

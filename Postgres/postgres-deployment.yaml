@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: postgres
 spec:
-  replicas: 3
+  replicas: 1  
   selector:
     matchLabels:
       app: postgres
@@ -36,7 +36,27 @@ spec:
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        - name: uploads
+          mountPath: /uploads
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "admin", "-d", "investment_db"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "admin", "-d", "investment_db"]
+          initialDelaySeconds: 60
+          periodSeconds: 10
       volumes:
       - name: postgres-storage
         persistentVolumeClaim:
           claimName: postgres-pvc
+      - name: uploads
+        emptyDir: {}
+      - name: init-script
+        configMap:
+          name: init-db-script
+          defaultMode: 0755

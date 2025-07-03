@@ -4,3 +4,5 @@ metadata:
   name: postgres-config
 data:
   POSTGRES_DB: investment_db
+  POSTGRES_HOST: postgres-service
+  POSTGRES_PORT: "5432"
