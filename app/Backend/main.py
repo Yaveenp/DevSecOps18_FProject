@@ -957,8 +957,7 @@ def portfolio_analytics_history():
 
 @app.route('/')
 def home():
-    REQUEST_COUNT.inc()
-    return 'Hello, Flask!'
+    return 'Hello, To use the API, please visit /api/portfolio/signup to register or /api/portfolio/signin to login.'
 
 @app.route('/metrics')
 def metrics():
