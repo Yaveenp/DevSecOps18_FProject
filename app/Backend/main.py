@@ -744,6 +744,7 @@ def portfolio_real(ticker):
     Real-time stock data for a specific ticker symbol
     Also updates the ticker data in all tables (stocks, portfolio_files, portfolio_summaries)
     Returns the updated ticker data from all sources.
+    Additionally, updates all users' database files for this ticker, but only if a user is authenticated.
     """
     from datetime import timezone
     try:
@@ -756,6 +757,53 @@ def portfolio_real(ticker):
         if 'error' in result:
             return jsonify(result), 404
         utcnow = datetime.now(timezone.utc)
+        # Update all users' stocks, portfolio_files, and summaries for this ticker
+        users = User.query.all()
+        for user in users:
+            # Update stocks table for this user and ticker
+            stock_row = db.session.execute(
+                db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
+                {"user_id": user.user_id, "ticker": ticker}
+            ).fetchone()
+            if stock_row:
+                db.session.execute(
+                    db.text("""
+                        UPDATE stocks SET
+                            current_price = :current_price,
+                            value = quantity * :current_price,
+                            gain = (quantity * :current_price) - (quantity * buy_price),
+                            change_percent = :change_percent,
+                            updated_at = :updated_at
+                        WHERE user_id = :user_id AND ticker = :ticker
+                    """),
+                    {
+                        "current_price": result['price'],
+                        "change_percent": float(result['change_percent'].replace('%','')) if isinstance(result['change_percent'], str) else result['change_percent'],
+                        "updated_at": utcnow,
+                        "user_id": user.user_id,
+                        "ticker": ticker
+                    }
+                )
+            # Update portfolio_files JSON for this ticker
+            portfolio_file = PortfolioFile.query.filter_by(user_id=user.user_id).first()
+            if portfolio_file and 'holdings' in portfolio_file.file_content:
+                updated = False
+                for inv in portfolio_file.file_content['holdings']:
+                    if inv.get('ticker', '').upper() == ticker:
+                        inv['current_price'] = result['price']
+                        inv['value'] = inv['quantity'] * result['price']
+                        inv['gain'] = inv['value'] - (inv['buy_price'] * inv['quantity'])
+                        inv['change_percent'] = float(result['change_percent'].replace('%','')) if isinstance(result['change_percent'], str) else result['change_percent']
+                        updated = True
+                if updated:
+                    portfolio_file.file_content['updated_at'] = utcnow.isoformat()
+                    portfolio_file.updated_at = utcnow
+            # Update portfolio_summaries
+            if portfolio_file:
+                analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_file.file_content)
+                save_portfolio_summary_to_db(user.user_id, analytics_data)
+        db.session.commit()
+        # Now return the data for the current user as before
         # Fetch the stock row for this user and ticker
         stock_row = db.session.execute(
             db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
@@ -770,38 +818,16 @@ def portfolio_real(ticker):
             idx_company_name = idx('company_name', None)
             quantity = float(stock_row[idx_quantity])
             buy_price = float(stock_row[idx_buy_price])
-            # Try to get company_name from stocks table if present, else fallback to result
             company_name = None
             if idx_company_name is not None:
                 company_name = stock_row[idx_company_name]
             if not company_name:
                 company_name = result.get('01. company name', '')
-            # Update all fields in stocks table
-            db.session.execute(
-                db.text("""
-                    UPDATE stocks SET
-                        current_price = :current_price,
-                        value = :value,
-                        gain = :gain,
-                        change_percent = :change_percent,
-                        updated_at = :updated_at
-                    WHERE user_id = :user_id AND ticker = :ticker
-                """), {
-                    "user_id": current_user.user_id,
-                    "ticker": ticker,
-                    "current_price": float(result.get('05. price', 0)),
-                    "value": float(result.get('05. price', 0)) * quantity,
-                    "gain": (float(result.get('05. price', 0)) - buy_price) * quantity,
-                    "change_percent": float(result.get('10. change percent', '0').replace('%','')) if '10. change percent' in result else 0.0,
-                    "updated_at": utcnow
-                }
-            )
-            # Get updated stock row
             updated_stock = db.session.execute(
                 db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
                 {"user_id": current_user.user_id, "ticker": ticker}
             ).fetchone()
-        # Update portfolio_files JSON for this ticker
+        # Update portfolio_files JSON for this ticker for current user
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         updated_investment = None
         if portfolio_file and 'holdings' in portfolio_file.file_content:
@@ -815,12 +841,9 @@ def portfolio_real(ticker):
                     inv['updated_at'] = utcnow.isoformat()
                     updated_investment = inv
             portfolio_file.updated_at = utcnow
-        # Commit changes to DB
-        db.session.commit()
-        # Update portfolio_summaries
+        # Update portfolio_summaries for current user
         analytics_data = portfolio_summaries(ALPHA_VANTAGE_API_KEY, portfolio_file.file_content)
         save_portfolio_summary_to_db(current_user.user_id, analytics_data)
-        # Get updated summary for this ticker
         summary_row = PortfolioSummary.query.filter_by(user_id=current_user.user_id).first()
         summary_data = None
         if summary_row:
@@ -834,7 +857,7 @@ def portfolio_real(ticker):
                 'updated_at': summary_row.updated_at.isoformat() if summary_row.updated_at else None
             }
         return jsonify({
-            "message": "Stock data retrieved and updated successfully",
+            "message": "Stock data retrieved and updated for all users successfully",
             "ticker": ticker,
             "real_time_data": result,
             "stocks_table": dict(updated_stock._mapping) if updated_stock else None,
@@ -844,6 +867,7 @@ def portfolio_real(ticker):
     except Exception as e:
         import traceback
         print(traceback.format_exc())
+        db.session.rollback()
         return jsonify({"message": f"Error occurred: {str(e)}"}), 500
 
 @app.get('/api/stocks/market') # WORKS
@@ -955,35 +979,7 @@ def portfolio_analytics_history():
         print(e)
         return jsonify({"message": "Error occurred"}), 500
 
-@app.route('/')
-def home():
-    return 'Hello, To use the API, please visit /api/portfolio/signup to register or /api/portfolio/signin to login.'
-
-@app.route('/metrics')
-def metrics():
-    """Expose Prometheus metrics for monitoring
-    This endpoint provides CPU and memory usage metrics for the Flask application.
-    It uses the psutil library to gather system metrics and the prometheus_client library to format
-    them for Prometheus scraping.
-    The metrics include:
-    - CPU usage percentage
-    - Memory usage in bytes
-    The metrics are exposed at the /metrics endpoint, which can be scraped by Prometheus.
-    The metrics are updated in real-time and can be used to monitor the performance of the Flask application.
-    The metrics are in the Prometheus text format and can be scraped by Prometheus servers.
-    The metrics are updated every time the /metrics endpoint is accessed.
-    """
-    process = psutil.Process(os.getpid())
-    cpu_percent = psutil.cpu_percent(interval=None)
-    mem_info = process.memory_info().rss
-
-    CPU_USAGE.set(cpu_percent)
-    MEMORY_USAGE.set(mem_info)
-
-    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
-
 if __name__ == '__main__':
     with app.app_context():
-        print("DB-URI actually used:", app.config['SQLALCHEMY_DATABASE_URI'], flush=True)
         db.create_all()
     app.run(host='0.0.0.0', port=5050, debug=True) # Debug mode - Remove before production
