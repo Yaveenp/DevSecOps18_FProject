@@ -16,7 +16,8 @@ from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Ticker import Get_Tick
 from prometheus_client import Counter, Histogram, generate_latest, Gauge, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
-CORS(app)
+#CORS(app)
+CORS(app, supports_credentials=True, origins=["http://localhost:3001"])
 
 # Prometheus metrics
 REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ['method', 'endpoint'])
@@ -48,7 +49,8 @@ app.secret_key = 'your-secret-key-change-in-production'
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
 
 # SQLAlchemy DB config for PostgreSQL
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SQLAlchemy
