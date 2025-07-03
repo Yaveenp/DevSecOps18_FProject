@@ -47,6 +47,7 @@ app.secret_key = 'your-secret-key-change-in-production'
 
 # Alpha Vantage API Key - Set this in environment variables
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
+#ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'TU9HXAGCT30ECLY8')
 
 # SQLAlchemy DB config for PostgreSQL
 #app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'

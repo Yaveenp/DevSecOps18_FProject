@@ -24,8 +24,8 @@ const PortfolioDashboard = () => {
 
   // Generate historical portfolio data
   useEffect(() => {
-    const generateHistoricalData = () => {
-      const data = [];
+    const generateHistoricalData = (): PortfolioHistoryEntry[] => {
+      const data: PortfolioHistoryEntry[] = [];
       const startValue = 50000;
       let currentValue = startValue;
       

@@ -25,6 +25,7 @@ const AuthForm = ({ onLogin }) => {
         headers: {
           'Content-Type': 'application/json',
         },
+        mode: 'cors',
         credentials: 'include',
         body: JSON.stringify(formData)
       });
@@ -42,7 +43,8 @@ const AuthForm = ({ onLogin }) => {
         setError(data.message || 'Authentication failed');
       }
     } catch (err) {
-      setError('Network error. Make sure the Flask backend is running on port 5050.');
+      console.error('Network error details:', err);
+      setError(`Network error: ${err.message}. Backend status: Check console for details.`);
     } finally {
       setLoading(false);
     }
@@ -177,21 +179,37 @@ const PortfolioDashboard = () => {
   // Fetch portfolio data from backend
   const fetchPortfolio = async () => {
     setLoading(true);
+    setError('');
     try {
+      console.log('Fetching portfolio from:', `${API_BASE}/api/portfolio`);
       const response = await fetch(`${API_BASE}/api/portfolio`, {
-        credentials: 'include'
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+      
+      console.log('Portfolio response status:', response.status);
+      console.log('Portfolio response headers:', response.headers);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Portfolio data received:', data);
         if (data.portfolio) {
           setStocks(data.portfolio);
+        } else {
+          console.log('No portfolio data in response');
+          setStocks([]);
         }
       } else {
-        setError('Failed to fetch portfolio data');
+        const errorData = await response.json();
+        console.error('Portfolio fetch error:', errorData);
+        setError(`Failed to fetch portfolio: ${errorData.message || response.statusText}`);
       }
     } catch (err) {
-      setError('Network error fetching portfolio');
+      console.error('Network error details:', err);
+      setError(`Network error fetching portfolio: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -290,13 +308,29 @@ const PortfolioDashboard = () => {
     }
   }, [isAuthenticated]);
 
-  // Calculate totals
+  // Calculate totals with proper formulas
   useEffect(() => {
     if (stocks.length > 0) {
-      const total = stocks.reduce((sum, stock) => sum + (stock.value || 0), 0);
-      const totalInvestment = stocks.reduce((sum, stock) => sum + (stock.buy_price * stock.quantity), 0);
-      setTotalValue(total);
-      setTotalGain(total - totalInvestment);
+      // Total Value = Current Price × Number of Shares (for each stock)
+      const totalValue = stocks.reduce((sum, stock) => {
+        const currentPrice = stock.current_price || stock.buy_price || 0;
+        const shares = stock.quantity || 0;
+        return sum + (currentPrice * shares);
+      }, 0);
+
+      // Total Gain/Loss = (Current Price - Buy Price) × Number of Shares (for each stock)
+      const totalGainLoss = stocks.reduce((sum, stock) => {
+        const currentPrice = stock.current_price || stock.buy_price || 0;
+        const buyPrice = stock.buy_price || 0;
+        const shares = stock.quantity || 0;
+        return sum + ((currentPrice - buyPrice) * shares);
+      }, 0);
+
+      setTotalValue(totalValue);
+      setTotalGain(totalGainLoss);
+    } else {
+      setTotalValue(0);
+      setTotalGain(0);
     }
   }, [stocks]);
 
@@ -314,7 +348,7 @@ const PortfolioDashboard = () => {
 
   const pieData = stocks.map(stock => ({
     name: stock.ticker,
-    value: stock.value || 0
+    value: (stock.current_price || stock.buy_price || 0) * stock.quantity
   }));
 
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1'];
@@ -385,7 +419,26 @@ const PortfolioDashboard = () => {
               <div>
                 <p className="text-gray-300 text-sm">Return %</p>
                 <p className={`text-2xl font-bold ${totalGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {totalValue > 0 ? ((totalGain / (totalValue - totalGain)) * 100).toFixed(2) : '0.00'}%
+                  {stocks.length > 0 ? (() => {
+                    // Calculate portfolio-wide return percentage
+                    // Total Investment (what you paid for all stocks)
+                    const totalInvestment = stocks.reduce((sum, stock) => {
+                      return sum + (stock.buy_price * stock.quantity);
+                    }, 0);
+                    
+                    // Total Current Value (what all stocks are worth now)
+                    const totalCurrentValue = stocks.reduce((sum, stock) => {
+                      const currentPrice = stock.current_price || stock.buy_price || 0;
+                      return sum + (currentPrice * stock.quantity);
+                    }, 0);
+                    
+                    // Portfolio Return % = (Current Value - Investment) / Investment * 100
+                    if (totalInvestment > 0) {
+                      const portfolioReturn = ((totalCurrentValue - totalInvestment) / totalInvestment) * 100;
+                      return portfolioReturn.toFixed(2);
+                    }
+                    return '0.00';
+                  })() : '0.00'}%
                 </p>
               </div>
               <span className="text-2xl">📊</span>
@@ -571,9 +624,15 @@ const PortfolioDashboard = () => {
                       <td className="py-3 text-right text-white">{stock.quantity}</td>
                       <td className="py-3 text-right text-white">${stock.buy_price?.toFixed(2) || '0.00'}</td>
                       <td className="py-3 text-right text-white">${stock.current_price?.toFixed(2) || '0.00'}</td>
-                      <td className="py-3 text-right text-white">${stock.value?.toFixed(2) || '0.00'}</td>
+                      <td className="py-3 text-right text-white">${((stock.current_price || stock.buy_price || 0) * stock.quantity).toFixed(2)}</td>
                       <td className={`py-3 text-right ${(stock.gain || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        ${stock.gain?.toFixed(2) || '0.00'} ({stock.change_percent?.toFixed(2) || '0.00'}%)
+                        ${(() => {
+                          const currentPrice = stock.current_price || stock.buy_price || 0;
+                          const buyPrice = stock.buy_price || 0;
+                          const gainLoss = (currentPrice - buyPrice) * stock.quantity;
+                          const gainPercent = buyPrice > 0 ? ((currentPrice - buyPrice) / buyPrice) * 100 : 0;
+                          return `${gainLoss.toFixed(2)} (${gainPercent.toFixed(2)}%)`;
+                        })()}
                       </td>
                       <td className="py-3 text-right">
                         <button
