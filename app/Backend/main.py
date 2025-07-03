@@ -24,6 +24,8 @@ REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ['method',
 REQUEST_LATENCY = Histogram("http_request_duration_seconds", "Request latency", ['endpoint'])
 CPU_USAGE = Gauge("container_cpu_usage_percent", "CPU usage percent")
 MEMORY_USAGE = Gauge("container_memory_usage_bytes", "Memory usage in bytes")
+STOCK_MARKET_CALLS = Counter("stock_market_calls_total", "Total calls to /api/stocks/market endpoint")
+TOP_GAINER_PERCENT = Gauge("stock_market_top_gainer_percent", "Top gainer percent change from /api/stocks/market", ['ticker'])
 
 @app.before_request
 def start_timer():
@@ -48,10 +50,10 @@ app.secret_key = 'your-secret-key-change-in-production'
 # Alpha Vantage API Key - Set this in environment variables
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
 #ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'TU9HXAGCT30ECLY8')
+#ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'NC7R1MCB064DQ0JE')
 
 # SQLAlchemy DB config for PostgreSQL
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@localhost:5432/investment_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://admin:thisisastrongpassword@postgres:5432/investment_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SQLAlchemy
@@ -773,7 +775,7 @@ def portfolio_real(ticker):
             stock_row = db.session.execute(
                 db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
                 {"user_id": user.user_id, "ticker": ticker}
-            ).fetchone()
+            ).mappings().fetchone()
             if stock_row:
                 db.session.execute(
                     db.text("""
@@ -787,7 +789,7 @@ def portfolio_real(ticker):
                     """),
                     {
                         "current_price": result['price'],
-                        "change_percent": float(result['change_percent'].replace('%','')) if isinstance(result['change_percent'], str) else result['change_percent'],
+                        "change_percent": float(result['change_percent'].replace('%', '')) if isinstance(result['change_percent'], str) else result['change_percent'],
                         "updated_at": utcnow,
                         "user_id": user.user_id,
                         "ticker": ticker
@@ -802,7 +804,7 @@ def portfolio_real(ticker):
                         inv['current_price'] = result['price']
                         inv['value'] = inv['quantity'] * result['price']
                         inv['gain'] = inv['value'] - (inv['buy_price'] * inv['quantity'])
-                        inv['change_percent'] = float(result['change_percent'].replace('%','')) if isinstance(result['change_percent'], str) else result['change_percent']
+                        inv['change_percent'] = float(result['change_percent'].replace('%', '')) if isinstance(result['change_percent'], str) else result['change_percent']
                         updated = True
                 if updated:
                     portfolio_file.file_content['updated_at'] = utcnow.isoformat()
@@ -817,25 +819,15 @@ def portfolio_real(ticker):
         stock_row = db.session.execute(
             db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
             {"user_id": current_user.user_id, "ticker": ticker}
-        ).fetchone()
+        ).mappings().fetchone()
         updated_stock = None
         if stock_row:
-            col_names = stock_row.keys() if hasattr(stock_row, 'keys') else []
-            idx = lambda name, default: col_names.index(name) if name in col_names else default
-            idx_quantity = idx('quantity', 2)
-            idx_buy_price = idx('buy_price', 3)
-            idx_company_name = idx('company_name', None)
-            quantity = float(stock_row[idx_quantity])
-            buy_price = float(stock_row[idx_buy_price])
-            company_name = None
-            if idx_company_name is not None:
-                company_name = stock_row[idx_company_name]
+            quantity = float(stock_row.get('quantity', 0))
+            buy_price = float(stock_row.get('buy_price', 0))
+            company_name = stock_row.get('company_name')
             if not company_name:
                 company_name = result.get('01. company name', '')
-            updated_stock = db.session.execute(
-                db.text("SELECT * FROM stocks WHERE user_id = :user_id AND ticker = :ticker"),
-                {"user_id": current_user.user_id, "ticker": ticker}
-            ).fetchone()
+            updated_stock = stock_row
         # Update portfolio_files JSON for this ticker for current user
         portfolio_file = PortfolioFile.query.filter_by(user_id=current_user.user_id).first()
         updated_investment = None
@@ -845,7 +837,7 @@ def portfolio_real(ticker):
                     inv['current_price'] = float(result.get('05. price', 0))
                     inv['value'] = float(result.get('05. price', 0)) * float(inv.get('quantity', 0))
                     inv['gain'] = (float(result.get('05. price', 0)) - float(inv.get('buy_price', 0))) * float(inv.get('quantity', 0))
-                    inv['change_percent'] = float(result.get('10. change percent', '0').replace('%','')) if '10. change percent' in result else 0.0
+                    inv['change_percent'] = float(result.get('10. change percent', '0').replace('%', '')) if '10. change percent' in result else 0.0
                     inv['company_name'] = result.get('01. company name', inv.get('company_name', ''))
                     inv['updated_at'] = utcnow.isoformat()
                     updated_investment = inv
@@ -869,7 +861,7 @@ def portfolio_real(ticker):
             "message": "Stock data retrieved and updated for all users successfully",
             "ticker": ticker,
             "real_time_data": result,
-            "stocks_table": dict(updated_stock._mapping) if updated_stock else None,
+            "stocks_table": dict(updated_stock) if updated_stock else None,
             "portfolio_file_investment": updated_investment,
             "portfolio_summary": summary_data
         }), 200
@@ -889,19 +881,28 @@ def portfolio_market():
     try:
         current_user = get_current_user()
         if not current_user:
-            return jsonify({'error': 'Unauthorized'}), 401
+            return jsonify({"message": "Please login and try again"}), 401
         api_key = ALPHA_VANTAGE_API_KEY
         try:
-            result = Get_Market_Trends.get_top_gainers(api_key)
-            if isinstance(result, str):
-                return jsonify({'error': result}), 500
-            # result is a list of dicts (top 10 gainers)
-            return jsonify({'top_gainers': result}), 200
+            STOCK_MARKET_CALLS.inc()
+            result = Get_Market_Trends.get_market_trends(api_key)
+            # If result is a dict with 'top_gainers', update the gauge
+            if isinstance(result, dict) and 'top_gainers' in result:
+                for gainer in result['top_gainers']:
+                    ticker = gainer.get('ticker')
+                    percent = gainer.get('change_percent', 0.0)
+                    try:
+                        percent = float(str(percent).replace('%', ''))
+                    except Exception:
+                        percent = 0.0
+                    if ticker:
+                        TOP_GAINER_PERCENT.labels(ticker=ticker).set(percent)
+            return jsonify(result), 200
         except Exception as e:
-            print(e)
-            return jsonify({'error': 'Failed to fetch market data'}), 500
+            print(f"Error in /api/stocks/market: {e}")
+            return jsonify({"message": "Error fetching market trends"}), 500
     except Exception as e:
-        return jsonify({'error': 'Internal server error'}), 500 
+        return jsonify({"message": "Error occurred"}), 500
 
 @app.get('/api/portfolio/analytics') # WORKS
 def portfolio_analytics():

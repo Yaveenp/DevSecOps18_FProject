@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "type": "dashboard",
+        "name": "Annotations & Alerts",
+        "enabled": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Stock Market Trends (API Calls)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "increase(http_requests_total{endpoint=\"portfolio_market\"}[1h])",
+          "legendFormat": "Market Endpoint Calls",
+          "interval": ""
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    }
+  ],
+  "schemaVersion": 36,
+  "title": "Stock Market Trends Dashboard",
+  "version": 1
+}

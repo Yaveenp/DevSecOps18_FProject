@@ -3,8 +3,9 @@ import requests
 class Get_Ticker:
     '''
     Get ticker real time values
-    returen: JSON if the ticker data
+    return: JSON of the ticker data
     '''
+    @staticmethod
     def get_stock_quote(ticker, api_key):
         url = 'https://www.alphavantage.co/query'
         params = {
@@ -12,28 +13,35 @@ class Get_Ticker:
             'symbol': ticker,
             'apikey': api_key
         }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        quote = data.get("Global Quote", {})
-        if not quote:
-            return {'error': 'No data found for ticker.'}, 404
-
         try:
+            response = requests.get(url, params=params)
+            data = response.json()
+            # Log the raw response for debugging
+            print(f"Alpha Vantage response for {ticker}: {data}")
+
+            if "Note" in data:
+                return {"error": "Alpha Vantage API rate limit exceeded. Please try again later."}
+            if "Error Message" in data:
+                return {"error": f"Invalid ticker symbol '{ticker}' or API error."}
+            quote = data.get("Global Quote", {})
+            if not quote or not quote.get("01. symbol"):
+                return {"error": f"No data found for ticker '{ticker}'. It may be invalid or unavailable."}
+
             return {
-                'symbol': quote['01. symbol'],
-                'open': float(quote['02. open']),
-                'high': float(quote['03. high']),
-                'low': float(quote['04. low']),
-                'price': float(quote['05. price']),
-                'volume': int(quote['06. volume']),
-                'latest_trading_day': quote['07. latest trading day'],
-                'previous_close': float(quote['08. previous close']),
-                'change': float(quote['09. change']),
-                'change_percent': quote['10. change percent']
+                'symbol': quote.get('01. symbol', ticker),
+                'open': float(quote.get('02. open', 0)),
+                'high': float(quote.get('03. high', 0)),
+                'low': float(quote.get('04. low', 0)),
+                'price': float(quote.get('05. price', 0)),
+                'volume': int(quote.get('06. volume', 0)),
+                'latest_trading_day': quote.get('07. latest trading day', ''),
+                'previous_close': float(quote.get('08. previous close', 0)),
+                'change': float(quote.get('09. change', 0)),
+                'change_percent': quote.get('10. change percent', '0')
             }
-        except (KeyError, ValueError):
-            return {'error': 'Failed to parse stock data.'}, 500
+        except Exception as e:
+            print(f"Exception in get_stock_quote: {e}")
+            return {"error": "Internal server error while fetching stock data."}
 
 if __name__ == '__main__':
     Get_Ticker.get_stock_quote()
