@@ -27,12 +27,18 @@ MEMORY_USAGE = Gauge("container_memory_usage_bytes", "Memory usage in bytes")
 @app.before_request
 def start_timer():
     request.start_time = datetime.now()
+    # Track endpoint for Prometheus metrics
+    endpoint = request.endpoint or request.path
+    method = request.method
+    # Increment request count for this endpoint and method
+    REQUEST_COUNT.labels(method=method, endpoint=endpoint).inc()
 
 @app.after_request
 def record_request_data(response):
     duration = (datetime.now() - request.start_time).total_seconds()
-    REQUEST_LATENCY.labels(request.path).observe(duration)
-    REQUEST_COUNT.labels(request.method, request.path).inc()
+    endpoint = request.endpoint or request.path
+    REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
+    # REQUEST_COUNT increment moved to before_request for per-endpoint granularity
     return response
 
 # Secret key for session management
@@ -978,6 +984,27 @@ def portfolio_analytics_history():
     except Exception as e:
         print(e)
         return jsonify({"message": "Error occurred"}), 500
+
+@app.route('/metrics')
+def metrics():
+    """
+    Expose Prometheus metrics for monitoring
+    This endpoint collects CPU and memory usage metrics
+    """
+    import psutil, os
+    from prometheus_client import Gauge
+
+    process = psutil.Process(os.getpid())
+    cpu_percent = psutil.cpu_percent(interval=None)
+    mem_info = process.memory_info().rss
+    CPU_USAGE.set(cpu_percent)
+    MEMORY_USAGE.set(mem_info)
+
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+@app.route('/')
+def home():
+    return 'Hello, to use the API please login'
 
 if __name__ == '__main__':
     with app.app_context():
