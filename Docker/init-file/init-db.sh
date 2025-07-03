@@ -285,11 +285,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
   CREATE INDEX IF NOT EXISTS idx_stocks_ticker ON stocks(ticker);
   CREATE INDEX IF NOT EXISTS idx_portfolio_files_user_id ON portfolio_files(user_id);
   CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_user_id ON portfolio_summaries(user_id);
-  
-  -- JSON indexes for better query performance
-  CREATE INDEX IF NOT EXISTS idx_portfolio_files_content ON portfolio_files USING GIN (file_content);
-  CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_top_holdings ON portfolio_summaries USING GIN (top_holdings);
-  CREATE INDEX IF NOT EXISTS idx_portfolio_summaries_stock_breakdown ON portfolio_summaries USING GIN (stock_breakdown);
 
   -- Grant necessary permissions
   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $POSTGRES_USER;
