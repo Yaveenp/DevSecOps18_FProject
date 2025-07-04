@@ -23,12 +23,12 @@
         "y": 0
       },
       "id": 1,
-      "title": "Stock Market Trends (API Calls)",
+      "title": "Top Gainers Percent Change (Live)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "increase(http_requests_total{endpoint=\"portfolio_market\"}[1h])",
-          "legendFormat": "Market Endpoint Calls",
+          "expr": "stock_market_top_gainer_percent",
+          "legendFormat": "{{ticker}}",
           "interval": ""
         }
       ],
@@ -41,6 +41,6 @@
     }
   ],
   "schemaVersion": 36,
-  "title": "Stock Market Trends Dashboard",
+  "title": "Top Gainers Dashboard",
   "version": 1
 }

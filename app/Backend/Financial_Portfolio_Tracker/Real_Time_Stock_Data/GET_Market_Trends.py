@@ -5,7 +5,7 @@ import random
 class Get_Market_Trends:
     '''
     Get market trends real time values
-    return: Dict with 'top_gainers' or 'error' key
+    return: Dict with 'top_gainers' (top 3 by percent)
     '''
     @staticmethod
     def get_market_trends(api_key):
@@ -18,7 +18,7 @@ class Get_Market_Trends:
             "INTC", "TXN", "NEE", "NKE", "ORCL", "AMGN", "MDT", "QCOM", "HON", "IBM"
         ]
         selected_symbols = random.sample(symbols, 5)
-        gainers = []
+        all_changes = []
         for symbol in selected_symbols:
             params = {
                 "function": "TIME_SERIES_DAILY",
@@ -46,7 +46,7 @@ class Get_Market_Trends:
                 open_price = float(latest["1. open"])
                 change = close_price - open_price
                 change_percent = (change / open_price) * 100 if open_price else 0.0
-                gainers.append({
+                all_changes.append({
                     "ticker": symbol,
                     "price": close_price,
                     "change": round(change, 2),
@@ -56,12 +56,15 @@ class Get_Market_Trends:
                 print(f"Exception for {symbol}: {e}")
                 continue
             time.sleep(2)
-        if not gainers:
+        if not all_changes:
             return {"error": "No market data could be retrieved. Check API key or rate limits."}
-        gainers.sort(key=lambda x: x["change_percent"], reverse=True)
-        return {"top_gainers": gainers}
+        # Sort for top gainers (top 3 by percent)
+        top_gainers = sorted(all_changes, key=lambda x: x["change_percent"], reverse=True)[:3]
+        return {
+            "top_gainers": top_gainers
+        }
 
 if __name__ == '__main__':
     api_key = "YOUR_API_KEY"  # Replace with your actual API key
-    top_gainers = Get_Market_Trends.get_market_trends(api_key)
-    print(top_gainers)
+    result = Get_Market_Trends.get_market_trends(api_key)
+    print(result)
