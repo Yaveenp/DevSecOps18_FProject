@@ -10,10 +10,12 @@ This application helps users track investments, calculate portfolio growth, and 
 
 ### Key Features
 - Investment portfolio tracking and management
-- Real-time stock market data integration
+- Real-time stock market data integration (Alpha Vantage API)
 - Portfolio growth calculations and analytics
 - Secure CRUD operations for portfolio management
 - Containerized microservices architecture
+- Prometheus & Grafana monitoring (API metrics, stock trends)
+- Docker Compose & Kubernetes deployment support
 
 ---
 
@@ -27,10 +29,12 @@ The project is structured to guide users and contributors through a clear progre
 
 - **Python** - Backend application development
 - **Flask** - Web framework for API development
-- **Node.js** - Frontend application development
+- **Node.js** - Frontend application development (React/TypeScript)
 - **PostgreSQL** - Database for data persistence
 - **Docker** - Application containerization
 - **Kubernetes** - Container orchestration and deployment
+- **Prometheus** - Monitoring and metrics
+- **Grafana** - Visualization and dashboards
 - **Terraform** - Infrastructure as Code (IaC)
 - **Bash** - Database initialization scripts
 
@@ -53,21 +57,21 @@ DevSecOps18_FProject/
 │       ├── src/                           # React components and logic
 │       ├── package.json                   # Node.js project config
 │       ├── tsconfig.json                  # TypeScript config
-│       └── react-dockerfile               # Dockerfile for React frontend 
-
+│       └── Dockerfile                     # Dockerfile for React frontend 
+│
 ├── Docker/                                # Local development setup
-│   ├── docker-compose.yml                 # Multi-container orchestration (Postgres, Flask, React)
+│   ├── docker-compose.yml                 # Multi-container orchestration (Postgres, Flask, React, Prometheus, Grafana)
 │   ├── init-file/
 │   │   └── init-db.sh                     # DB initialization script (auto-run in container)
 │   └── requirements.txt                   # Optional: Docker build-specific Python deps
-
+│
 ├── Postgres/                              # Kubernetes manifests for PostgreSQL
 │   ├── postgres-configmap.yaml            # ConfigMap (DB name)
 │   ├── postgres-secret.yaml               # Secret (username/password)
 │   ├── postgres-pvc.yaml                  # Persistent Volume Claim
 │   ├── postgres-deployment.yaml           # Deployment (Postgres container)
 │   └── postgres-service.yaml              # Service (internal ClusterIP)
-
+│
 ├── kubernetes/                            # Kubernetes manifests for app stack
 │   ├── flask/                             # Flask API backend
 │   │   ├── flask-deployment.yaml
@@ -76,7 +80,19 @@ DevSecOps18_FProject/
 │   ├── frontend/                          # React frontend app
 │   │   ├── frontend-deployment.yaml
 │   │   └── frontend-service.yaml
-
+│   └── monitoring/                        # Prometheus & Grafana manifests
+│       ├── prometheus-deployment.yaml
+│       ├── prometheus-service.yaml
+│       ├── prometheus-configmap.yaml
+│       ├── grafana-deployment.yaml
+│       ├── grafana-service.yaml
+│       ├── frontend-deployment.yaml
+│       └── frontend-service.yaml
+│
+├── grafana/                               # Grafana dashboards and provisioning
+│   ├── dashboards/                        # JSON dashboards (api_latency, stock_market_trends, top_gainers)
+│   └── provisioning/                      # Datasource and dashboard provisioning
+│
 ├── Jenkinsfile                            # CI/CD pipeline for build/test/deploy
 ├── DevSecOps18 - Financial Portfolio Tracker.drawio  # System architecture diagram
 └── README.md                              # Project documentation 
@@ -109,7 +125,9 @@ DevSecOps18_FProject/
 3. **Deploy to Kubernetes:**
    ```bash
    kubectl apply -f Postgres/
-   # Add additional deployment manifests as needed
+   kubectl apply -f kubernetes/flask/
+   kubectl apply -f kubernetes/frontend/
+   kubectl apply -f kubernetes/monitoring/
    ```
 
 ---
@@ -127,8 +145,8 @@ DB_USER=your_username
 DB_PASSWORD=your_password
 
 # API Configuration
-STOCK_API_KEY=your_api_key
-STOCK_API_URL=https://api.example.com
+ALPHA_VANTAGE_API_KEY=your_api_key
+STOCK_API_URL=https://www.alphavantage.co/query
 
 # Flask Configuration
 FLASK_ENV=development
@@ -147,6 +165,7 @@ The application follows a microservices architecture with the following componen
 - **Frontend**: React/Node.js application for user interface
 - **Backend**: Flask API server handling business logic
 - **Database**: PostgreSQL for data persistence
+- **Monitoring**: Prometheus for metrics, Grafana for dashboards
 - **Container Orchestration**: Kubernetes for deployment and scaling
 - **Infrastructure**: Terraform for cloud resource provisioning
 
@@ -162,9 +181,12 @@ This project implements several DevSecOps security practices:
 - Database credential encryption
 
 ---
-# need to add
+
 ## 🧪 Testing 
 
+- Unit and integration tests for backend and frontend
+- Security and compliance checks in CI/CD
+- Manual and automated API endpoint testing
 
 ---
 
@@ -177,8 +199,47 @@ This project implements several DevSecOps security practices:
 - `DELETE /api/portfolio/{investment_id}` - Delete portfolio
 
 ### Stock Data
-- `GET /api/stocks/ticker/{ticker}` - Get real-time ticker data
-- `GET /api/stocks/trends` - Get market trends
+- `GET /api/stocks/<ticker>` - Get real-time ticker data
+- `GET /api/stocks/market` - Get market trends (top gainers)
+
+### Monitoring
+- `/metrics` - Prometheus metrics endpoint (Flask backend)
+
+---
+
+## 📊 Monitoring with Prometheus & Grafana
+
+### Docker Compose
+
+Prometheus and Grafana are included as services in the Docker Compose setup. They are automatically started and networked with the backend and frontend.
+
+- **Prometheus** scrapes metrics from the Flask backend at `/metrics`.
+- **Grafana** is pre-configured to use Prometheus as a data source and includes dashboards for API latency and stock market trends.
+
+**Access Grafana:**
+- Open your browser and go to: [http://localhost:3000](http://localhost:3000)
+- Default login: `admin` / `admin`
+- Explore dashboards for API and stock market metrics.
+
+### Kubernetes
+
+To deploy monitoring in Kubernetes:
+
+1. Apply the monitoring manifests:
+   ```bash
+   kubectl apply -f kubernetes/monitoring/
+   ```
+2. Expose Grafana and Prometheus using NodePort or Ingress as needed.
+3. Access Grafana at `http://<NodeIP>:3000` (NodePort 30000 or as configured).
+4. Dashboards and Prometheus data source are provisioned automatically from the `grafana/` directory.
+
+**Dashboards:**
+- `api_latency_dashboard.json`: API latency and request metrics
+- `stock_market_trends_dashboard.json`: Stock market trends and API call frequency
+- `top_gainers_dashboard.json`: Top stock gainers percent change over time
+
+**Customizing Dashboards:**
+- Edit or add dashboards in `grafana/dashboards/` and they will be loaded automatically on container restart.
 
 ---
 

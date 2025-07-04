@@ -84,6 +84,20 @@ services:
     depends_on:
       - prometheus
 
+  frontend:
+    build:
+      context: ../app/Frontend
+      dockerfile: Dockerfile
+    image: portfolio/frontend:latest
+    container_name: frontend
+    restart: always
+    ports:
+      - "3001:80"
+    depends_on:
+      - flask-app
+    networks:
+      - default
+
 volumes:
   pgdata:
     driver: local
