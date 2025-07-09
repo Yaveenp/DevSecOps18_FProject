@@ -53,10 +53,13 @@ spec:
       volumes:
       - name: postgres-storage
         persistentVolumeClaim:
-          claimName: postgres-pvc
+          claimName: postgres-pvc-k8s
       - name: uploads
         emptyDir: {}
       - name: init-script
         configMap:
-          name: init-db-script
-          defaultMode: 0755
+          name: postgres-config
+          defaultMode: 0555
+          items:
+            - key: init-db.sh
+              path: init-db.sh
