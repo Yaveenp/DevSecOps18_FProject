@@ -106,30 +106,34 @@ DevSecOps18_FProject/
 ### Prerequisites
 - Docker and Docker Compose
 - Kubernetes cluster (local or cloud)
-- Node.js (v14 or higher)
 - Python 3.8+
 - Terraform (for infrastructure provisioning)
 
 ### Installation
-
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/Yaveenp/DevSecOps18_FProject.git
    cd DevSecOps18_FProject
    ```
-2. **Using Docker Compose with buildx option to run localy**
+ ## Local Opetion 1
+   2. **Using Docker Compose with buildx option to run localy**
+         ```bash
+      cd /Docker
+      docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
+      ``` 
+ ## Local Opetion 2
+   3. **Deploy to Kubernetes:**
       ```bash
-   docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
-   ``` 
-
-3. **Deploy to Kubernetes:**
-   ```bash
-   kubectl apply -f Postgres/
-   kubectl apply -f kubernetes/flask/
-   kubectl apply -f kubernetes/frontend/
-   kubectl apply -f kubernetes/monitoring/
-   ```
-
+      kubectl apply -f Postgres/
+      kubectl apply -f kubernetes/flask/
+      kubectl apply -f kubernetes/frontend/
+      kubectl apply -f kubernetes/monitoring/
+      ```
+## Cloud Opetion 1
+      3. **Deploy to AWS using Terraform:**
+      ```bash
+      **Need to add Terraform**
+      ```
 ---
 
 ## 🔧 Configuration
@@ -138,11 +142,11 @@ DevSecOps18_FProject/
 Create a `.env` file in the root directory with the following variables:
 ```env
 # Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=portfolio_tracker
-DB_USER=your_username
-DB_PASSWORD=your_password
+POSTGRES_HOST: postgres
+POSTGRES_PORT: 5432
+POSTGRES_DB: investment_db
+POSTGRES_USER: admin
+POSTGRES_PASSWORD: thisisastrongpassword
 
 # API Configuration
 ALPHA_VANTAGE_API_KEY=your_api_key
@@ -150,7 +154,6 @@ STOCK_API_URL=https://www.alphavantage.co/query
 
 # Flask Configuration
 FLASK_ENV=development
-SECRET_KEY=your_secret_key
 ```
 
 ### Database Setup
@@ -192,6 +195,10 @@ This project implements several DevSecOps security practices:
 
 ## 📈 API Endpoints
 
+### User Management
+- `POST /api/portfolio/signup` - Create new user with empty portfolio
+- `POST /api/portfolio/signin` - User signin with portfolio session
+  
 ### Portfolio Management
 - `GET /api/portfolio` - Retrieve user portfolios
 - `POST /api/portfolio` - Create new portfolio
@@ -199,9 +206,13 @@ This project implements several DevSecOps security practices:
 - `DELETE /api/portfolio/{investment_id}` - Delete portfolio
 
 ### Stock Data
-- `GET /api/stocks/<ticker>` - Get real-time ticker data
+- `GET /api/stocks/<ticker>` - Get real-time ticker data 
 - `GET /api/stocks/market` - Get market trends (top gainers)
 
+### Portfolio Analytics
+- `GET /api/portfolio/analytics` - Get User portfolio profit/loss data and growth trends with comprehensive analytics
+- `GET /api/portfolio/analytics/history` - Get historical portfolio analytics for the current user
+  
 ### Monitoring
 - `/metrics` - Prometheus metrics endpoint (Flask backend)
 
