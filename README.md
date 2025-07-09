@@ -115,20 +115,23 @@ DevSecOps18_FProject/
    git clone https://github.com/Yaveenp/DevSecOps18_FProject.git
    cd DevSecOps18_FProject
    ```
+
  ## Local Opetion 1 - Docker Compose
  **Using Docker Compose with buildx option to run localy**
          ```bash
       cd /Docker
       docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
       ``` 
+      
  ## Local Opetion 2 - Kubernetes 
  **Deploy to Kubernetes:**
-      ```bash
+         ```bash
       kubectl apply -f Postgres/
       kubectl apply -f kubernetes/flask/
       kubectl apply -f kubernetes/frontend/
       kubectl apply -f kubernetes/monitoring/
       ```
+      
 ## Cloud Opetion 1
 **Deploy to AWS using Terraform:**
    ```bash
@@ -269,6 +272,6 @@ This project is part of a DevSecOps course and is intended for educational purpo
 
 ## 🙏 Acknowledgments
 
-- DevSecOps18 Course instructors and materials from the hitech school in Bar Ilan university
+- DevSecOps18 Course instructors and materials from the hitech school in Bar Ilan university [Course Page](https://akadima.biu.ac.il/course-218)
 - Open source community for tools and libraries used
 - Stock market API "alphavantage" providers for real-time data access
