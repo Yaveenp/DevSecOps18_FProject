@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 # DevSecOps18 Final Project
 
 Welcome to the **DevSecOps18 Final Project** repository! This project demonstrates the integration of DevSecOps principles across a CI/CD pipeline, incorporating secure infrastructure provisioning, container orchestration, and automated security testing. Built as part of a DevSecOps course, it showcases practical application of secure development lifecycle practices.
@@ -277,4 +275,4 @@ This project is part of a DevSecOps course and is intended for educational purpo
 - DevSecOps18 Course instructors and materials from the hitech school in Bar Ilan university [Course Page](https://akadima.biu.ac.il/course-218)
 - Open source community for tools and libraries used
 - Stock market API "alphavantage" providers for real-time data access
->>>>>>> d19a4fc256bbf2296bd9f019a9b214cb90171990
+
