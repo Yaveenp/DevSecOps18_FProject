@@ -116,14 +116,14 @@ DevSecOps18_FProject/
    cd DevSecOps18_FProject
    ```
 
- ## Local Opetion 1 - Docker Compose
+ ## Local Option 1 - Docker Compose
  **Using Docker Compose with buildx option to run localy**
    ```bash
    cd /Docker
    docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
    ``` 
       
- ## Local Opetion 2 - Kubernetes 
+ ## Local Option 2 - Kubernetes 
  **Deploy to Kubernetes:**
    ```bash
    kubectl apply -f Postgres/
@@ -132,7 +132,7 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/monitoring/
    ```
       
-## Cloud Opetion 1
+## Cloud Option 1
 **Deploy to AWS using Terraform:**
    ```bash
    **Need to add Terraform**
