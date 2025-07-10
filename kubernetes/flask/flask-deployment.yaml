@@ -14,9 +14,28 @@ spec:
     spec:
       containers:
       - name: flask
-        image: portfolio/investment-flask:latest  # Your pushed image
+        image: yaveenp/investment-flask:latest
         ports:
         - containerPort: 5050
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5050
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5050
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "600m"
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
         env:
         - name: POSTGRES_HOST
           valueFrom:

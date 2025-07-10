@@ -9,11 +9,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Install dependencies
-COPY app/Backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY . /app/
 
 # Add Prometheus metrics
 RUN pip install --no-cache-dir flask prometheus_client
