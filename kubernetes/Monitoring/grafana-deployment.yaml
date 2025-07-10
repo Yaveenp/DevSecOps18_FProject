@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
+  namespace: financial-portfolio
   labels:
     app: grafana
 spec:
@@ -19,3 +20,11 @@ spec:
         image: grafana/grafana:latest
         ports:
         - containerPort: 3000
+        volumeMounts:
+        - name: grafana-datasource
+          mountPath: /etc/grafana/provisioning/datasources/datasource.yaml
+          subPath: datasource.yaml
+      volumes:
+      - name: grafana-datasource
+        configMap:
+          name: grafana-datasource

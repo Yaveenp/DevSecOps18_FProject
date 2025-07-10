@@ -18,8 +18,11 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Expose the port your React app will run on
+# Install a simple static server
+RUN npm install -g serve
+
+# Expose the port your app will run on
 EXPOSE 3001
 
-# Start the app
-CMD ["npm", "start"]
+# Start the production server
+CMD ["serve", "-s", "build", "-l", "3001"]

@@ -22,4 +22,4 @@ RUN pip install --no-cache-dir flask prometheus_client
 EXPOSE 5050
 
 # Run the app
-CMD ["python", "app/Backend/main.py"]
+CMD ["python", "main.py"]

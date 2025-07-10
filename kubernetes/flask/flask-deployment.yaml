@@ -19,13 +19,13 @@ spec:
         - containerPort: 5050
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/portfolio/health
             port: 5050
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/portfolio/health
             port: 5050
           initialDelaySeconds: 5
           periodSeconds: 10
@@ -67,8 +67,12 @@ spec:
             secretKeyRef:
               name: flask-secret
               key: ALPHA_VANTAGE_API_KEY
+        - name: FLASK_APP
+          value: "main.py"
         - name: FLASK_ENV
-          value: development
+          value: "production"
+        - name: FLASK_DEBUG
+          value: "0"
         volumeMounts:
         - name: uploads
           mountPath: /uploads

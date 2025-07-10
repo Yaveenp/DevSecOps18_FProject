@@ -20,7 +20,7 @@ const AuthForm = ({ onLogin }) => {
 
     try {
       const endpoint = isLogin ? '/api/portfolio/signin' : '/api/portfolio/signup';
-      const response = await fetch(`http://localhost:5050${endpoint}`, {
+      const response = await fetch(`${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +182,8 @@ const PortfolioDashboard = () => {
     company_name: ''
   });
 
-  const API_BASE = 'http://localhost:5050';
+  // Use API_BASE for all API calls, set from env or fallback to relative
+  const API_BASE = process.env.REACT_APP_API_URL || '';
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0'];
 
   // Fetch portfolio data from backend - GET /api/portfolio
@@ -193,7 +194,7 @@ const PortfolioDashboard = () => {
     setError('');
     try {
       console.log('Fetching portfolio...');
-      const response = await fetch(`${API_BASE}/api/portfolio`, {
+      const response = await fetch(`/api/portfolio`, {
         method: 'GET',
         credentials: 'include',
         headers: {
