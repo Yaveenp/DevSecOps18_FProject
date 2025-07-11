@@ -17,7 +17,11 @@ from prometheus_client import Counter, Histogram, generate_latest, Gauge, CONTEN
 
 app = Flask(__name__)
 #CORS(app)
-CORS(app, supports_credentials=True, origins=["http://localhost:3001"])
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:3001",
+    "http://frontend:3001",
+    "http://127.0.0.1:3001"
+])
 
 # Prometheus metrics
 REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ['method', 'endpoint'])
@@ -1009,10 +1013,6 @@ def metrics():
 @app.route('/')
 def home():
     return 'Hello, to use the API please login'
-
-@app.route('/health')
-def health_check():
-    return jsonify({"status": "healthy"}), 200
 
 if __name__ == '__main__':
     with app.app_context():

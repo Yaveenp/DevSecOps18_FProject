@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 
+const API_BASE = process.env.REACT_APP_API_URL || window._env_?.REACT_APP_API_URL || '';
+
 // Authentication Component
 const AuthForm = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,8 +21,8 @@ const AuthForm = ({ onLogin }) => {
     setError('');
 
     try {
-      const endpoint = isLogin ? '/api/portfolio/signin' : '/api/portfolio/signup';
-      const response = await fetch(`${endpoint}`, {
+      const endpoint = isLogin ? `${API_BASE}/api/portfolio/signin` : `${API_BASE}/api/portfolio/signup`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,36 +184,29 @@ const PortfolioDashboard = () => {
     company_name: ''
   });
 
-  // Use API_BASE for all API calls, set from env or fallback to relative
-  const API_BASE = process.env.REACT_APP_API_URL || '';
   const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1', '#d084d0'];
 
   // Fetch portfolio data from backend - GET /api/portfolio
   const fetchPortfolio = async () => {
     if (!isAuthenticated) return;
-    
     setLoading(true);
     setError('');
     try {
       console.log('Fetching portfolio...');
-      const response = await fetch(`/api/portfolio`, {
+      const response = await fetch(`${API_BASE}/api/portfolio`, {
         method: 'GET',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         }
       });
-      
       console.log('Portfolio response status:', response.status);
-      
       if (response.ok) {
         const data = await response.json();
         console.log('Portfolio data received:', data);
-        
         // Handle different response formats
         const portfolioItems = data.portfolio || data.investments || data || [];
         setStocks(Array.isArray(portfolioItems) ? portfolioItems : []);
-        
         // Generate historical data
         const histData = generatePortfolioHistory(portfolioItems);
         setPortfolioData(histData);
@@ -975,3 +970,5 @@ const PortfolioDashboard = () => {
 };
 
 export default PortfolioDashboard;
+
+// Instruct users: For Docker Compose, set REACT_APP_API_URL to http://localhost:5050. For Kubernetes, set it to your backend service URL (e.g., http://flask-service:5050) via environment variable or ConfigMap. Optionally, inject window._env_ for runtime config in Kubernetes.

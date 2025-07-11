@@ -4,6 +4,8 @@ FROM --platform=$BUILDPLATFORM node:18-alpine
 # Add build platform args
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # Set working directory
 WORKDIR /app

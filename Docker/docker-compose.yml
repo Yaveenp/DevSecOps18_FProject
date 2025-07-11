@@ -30,13 +30,13 @@ services:
 
   flask-app:
     build:
-      context: ..
-      dockerfile: app/Backend/flask-dockerfile   # Optional: explicit if using custom Dockerfile name
+      context: ../app/Backend
+      dockerfile: flask-dockerfile
     image: portfolio/investment-flask:latest
     container_name: investment_flask
     restart: always
     environment:
-      FLASK_APP: app/Backend/main.py
+      FLASK_APP: main.py
       FLASK_ENV: development
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -48,12 +48,11 @@ services:
       - "5050:5050"
     volumes:
       - portfolio_files:/uploads
-      - ../:/app
     depends_on:
       postgres:
         condition: service_healthy
     working_dir: /app
-    command: python app/Backend/main.py
+    command: python main.py
 
   prometheus:
     build:
@@ -88,17 +87,18 @@ services:
     build:
       context: ../app/Frontend
       dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:5050}
     image: portfolio/frontend:latest
     container_name: frontend
     restart: always
     environment:
-      - REACT_APP_API_URL=http://flask-app:5050
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:5050}
+      - NODE_ENV=production
     ports:
-      - "3001:80"
+      - "3001:3001"
     depends_on:
       - flask-app
-    networks:
-      - default
 
 volumes:
   pgdata:
