@@ -155,17 +155,17 @@
         <mxCell id="helm" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/mscae/Kubernetes.svg;" parent="1" vertex="1">
           <mxGeometry x="620" y="70" width="40" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="IUx_RxEww053qwB009mP-1" value="" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/databases/Azure_Database_PostgreSQL_Server.svg;" vertex="1" parent="1">
+        <mxCell id="IUx_RxEww053qwB009mP-1" value="" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/databases/Azure_Database_PostgreSQL_Server.svg;" parent="1" vertex="1">
           <mxGeometry x="790" y="182" width="48" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-4" value="Outside" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-4" value="Outside" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" parent="1" vertex="1">
           <mxGeometry x="10" y="40" width="30" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.223;entryY=-0.02;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="Q2sG06KYMsYFRJ_fSKv8-4" target="frontend-deploy">
+        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.223;entryY=-0.02;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="Q2sG06KYMsYFRJ_fSKv8-4" target="frontend-deploy" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-6" value="Nodeport: 30030" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
-          <mxGeometry x="45" y="38" width="110" height="30" as="geometry" />
+        <mxCell id="Q2sG06KYMsYFRJ_fSKv8-6" value="&lt;b&gt;&lt;u&gt;Ingress&lt;/u&gt;&lt;/b&gt;&lt;div&gt;&lt;b&gt;&lt;u&gt;Nodeport:&lt;br&gt;Promethes:30090&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;&lt;u&gt;Grafna:30300&lt;/u&gt;&lt;/b&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="50" width="120" height="70" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
