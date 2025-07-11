@@ -47,17 +47,32 @@ DevSecOps18_FProject/
 ├── app/                                   # Application source code (Backend & Frontend)
 │   ├── Backend/                           # Flask Backend
 │   │   ├── Financial_Portfolio_Tracker/   # Modularized CRUD & API logic
-│   │   │   ├── Portfolio_Management/      # CRUD (GET, POST, PUT, DELETE)
-│   │   │   └── Real_Time_Stock_Data/      # API integration for stock data
+│   │   │   ├── Portfolio_Management/      # Portfolio CRUD endpoints (GET, POST, PUT, DELETE)
+│   │   │   │   ├── GET/                   # GET portfolio endpoints
+│   │   │   │   ├── POST/                  # POST portfolio endpoints
+│   │   │   │   ├── PUT/                   # PUT portfolio endpoints
+│   │   │   │   ├── DELETE/                # DELETE portfolio endpoints
+│   │   │   └── Real_Time_Stock_Data/      # Real-time stock data API integration
 │   │   ├── main.py                        # Main Flask app entry point
 │   │   ├── requirements.txt               # Python dependencies
 │   │   └── flask-dockerfile               # Dockerfile for Flask backend 
 │   └── Frontend/                          # React Frontend (TypeScript)
-│       ├── public/                        # Static index.html
+│       ├── public/                        # Static index.html and assets
 │       ├── src/                           # React components and logic
+│       │   ├── components/                # Main dashboard and UI components
+│       │   │   ├── PortfolioDashboard.js  # Main dashboard component (JS)
+│       │   │   ├── 1PortfolioDashboard.tsx# Main dashboard component (TS)
+│       │   ├── App.js                     # App entry point
+│       │   ├── App.css                    # App styles
+│       │   ├── index.js                   # React entry point
+│       │   ├── index.css                  # Global styles
 │       ├── package.json                   # Node.js project config
 │       ├── tsconfig.json                  # TypeScript config
-│       └── Dockerfile                     # Dockerfile for React frontend 
+│       ├── Dockerfile                     # Dockerfile for React frontend 
+│       ├── react-dockerfile               # Alternative Dockerfile for React
+│       ├── tailwind.config.js             # Tailwind CSS config
+│       ├── postcss.config.js              # PostCSS config
+│       └── requirements.txt               # Optional frontend Python deps
 │
 ├── Docker/                                # Local development setup
 │   ├── docker-compose.yml                 # Multi-container orchestration (Postgres, Flask, React, Prometheus, Grafana)
@@ -68,36 +83,43 @@ DevSecOps18_FProject/
 ├── Postgres/                              # Kubernetes manifests for PostgreSQL
 │   ├── postgres-configmap.yaml            # ConfigMap (DB name)
 │   ├── postgres-secret.yaml               # Secret (username/password)
+│   ├── postgres-pv.yaml                   # Persistent Volume
 │   ├── postgres-pvc.yaml                  # Persistent Volume Claim
 │   ├── postgres-deployment.yaml           # Deployment (Postgres container)
 │   └── postgres-service.yaml              # Service (internal ClusterIP)
 │
 ├── kubernetes/                            # Kubernetes manifests for app stack
 │   ├── flask/                             # Flask API backend
-│   │   ├── flask-deployment.yaml
-│   │   ├── flask-service.yaml
-│   │   └── flask-secret.yaml
-│   ├── frontend/                          # React frontend app
-│   │   ├── frontend-deployment.yaml
-│   │   └── frontend-service.yaml
-│   └── monitoring/                        # Prometheus & Grafana manifests
-│       ├── prometheus-deployment.yaml
-│       ├── prometheus-service.yaml
-│       ├── prometheus-configmap.yaml
-│       ├── grafana-deployment.yaml
-│       ├── grafana-service.yaml
-│       ├── frontend-deployment.yaml
-│       └── frontend-service.yaml
+│   │   ├── flask-deployment.yaml          # Flask backend deployment
+│   │   ├── flask-service.yaml             # Flask backend service
+│   │   └── flask-secret.yaml              # Flask backend secrets
+│   ├── Frontend/                          # React frontend app
+│   │   ├── frontend-deployment.yaml       # Frontend deployment
+│   │   └── frontend-service.yaml          # Frontend service
+│   ├── Monitoring/                        # Prometheus & Grafana manifests
+│   │   ├── prometheus-deployment.yaml     # Prometheus deployment
+│   │   ├── prometheus-service.yaml        # Prometheus service
+│   │   ├── prometheus-configmap.yaml      # Prometheus config
+│   │   ├── grafana-deployment.yaml        # Grafana deployment
+│   │   ├── grafana-service.yaml           # Grafana service
+│   │   ├── grafana-dashboard-configmap.yaml      # ConfigMap (all dashboards auto-loaded from ConfigMap at startup)
+│   │   ├── grafana-datasource-configmap     # Prometheus datasource config
+│   │   ├── frontend-deployment.yaml       # (Optional) monitoring frontend deployment
+│   │   └── frontend-service.yaml          # (Optional) monitoring frontend service
+│   ├── ingress-nginx-controller.yaml      # Ingress controller manifest
+│   ├── ingress.yaml                       # Ingress rules for routing
 │
 ├── grafana/                               # Grafana dashboards and provisioning
 │   ├── dashboards/                        # JSON dashboards (api_latency, stock_market_trends, top_gainers)
 │   └── provisioning/                      # Datasource and dashboard provisioning
+│       ├── dashboards/
+│       │   └── dashboard.yaml             # Dashboard provisioning config
+│       └── datasources/
+│           └── datasource.yaml            # Datasource provisioning config
 │
 ├── Jenkinsfile                            # CI/CD pipeline for build/test/deploy
 ├── DevSecOps18 - Financial Portfolio Tracker.drawio  # System architecture diagram
 └── README.md                              # Project documentation 
-
-```
 
 ---
 
@@ -123,14 +145,75 @@ DevSecOps18_FProject/
    docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
    ``` 
       
- ## Local Option 2 - Kubernetes 
- **Deploy to Kubernetes:**
+ ## Local Option 2 - Kubernetes (with kubeadm)
+
+**Deploy to Kubernetes using kubeadm:**
+
+1. Create the namespace (if not already created):
    ```bash
-   kubectl apply -f Postgres/
-   kubectl apply -f kubernetes/flask/
-   kubectl apply -f kubernetes/frontend/
-   kubectl apply -f kubernetes/monitoring/
+   kubectl create namespace financial-portfolio
+   # Check namespace exists
+   kubectl get namespaces | findstr financial-portfolio
    ```
+
+2. Apply Secrets and ConfigMaps:
+   ```bash
+   kubectl apply -f Postgres/postgres-secret.yaml -n financial-portfolio 
+   kubectl apply -f Postgres/postgres-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/flask/flask-secret.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n financial-portfolio
+   # Check configmaps and secrets
+   kubectl get configmap,secret -n financial-portfolio
+   ```
+
+3. Apply Persistent Volumes and Claims (if needed):
+   ```bash
+   kubectl apply -f Postgres/postgres-pv.yaml -n financial-portfolio
+   kubectl apply -f Postgres/postgres-pvc.yaml -n financial-portfolio
+   # Check PV and PVC status
+   kubectl get pv,pvc -n financial-portfolio
+   ```
+
+4. Apply Deployments:
+   ```bash
+   kubectl apply -f Postgres/postgres-deployment.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/flask/flask-deployment.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Frontend/frontend-deployment.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml -n financial-portfolio
+   # Check deployments and pods
+   kubectl get deployments,pods -n financial-portfolio
+   ```
+
+5. Apply Services:
+   ```bash
+   kubectl apply -f Postgres/postgres-service.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/flask/flask-service.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Frontend/frontend-service.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/prometheus-service.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-service.yaml -n financial-portfolio
+   # Check services
+   kubectl get services -n financial-portfolio
+   ```
+
+6. Apply Ingress:
+   ```bash
+   kubectl apply -f kubernetes/ingress.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/ingress-nginx-controller.yaml
+   # Check ingress
+   kubectl get ingress -n financial-portfolio
+   kubectl get pods -n ingress-nginx
+   kubectl get services -n ingress-nginx  
+   ```
+
+7. Final status check:
+   ```bash
+   kubectl get all -n financial-portfolio
+   ```
+
+This order ensures all dependencies are available before pods start. Adjust file paths if your manifests are in different locations.
       
 ## Cloud Option 1
 **Deploy to AWS using Terraform:**
@@ -236,24 +319,10 @@ Prometheus and Grafana are included as services in the Docker Compose setup. The
 - Explore dashboards for API and stock market metrics.
 
 ### Kubernetes
-
-To deploy monitoring in Kubernetes:
-
-1. Apply the monitoring manifests:
-   ```bash
-   kubectl apply -f kubernetes/monitoring/
-   ```
-2. Expose Grafana and Prometheus using NodePort or Ingress as needed.
-3. Access Grafana at `http://<NodeIP>:3000` (NodePort 30000 or as configured).
-4. Dashboards and Prometheus data source are provisioned automatically from the `grafana/` directory.
-
-**Dashboards:**
-- `api_latency_dashboard.json`: API latency and request metrics
-- `stock_market_trends_dashboard.json`: Stock market trends and API call frequency
-- `top_gainers_dashboard.json`: Top stock gainers percent change over time
+- Open your browser and go to: [http://localhost:30300](http://localhost:3000)
 
 **Customizing Dashboards:**
-- Edit or add dashboards in `grafana/dashboards/` and they will be loaded automatically on container restart.
+- Edit or add dashboards in `grafana/dashboards/` and they will be automatically loaded by Grafana after deployment. No need to apply a dashboard ConfigMap.
 
 ---
 

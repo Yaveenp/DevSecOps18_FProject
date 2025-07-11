@@ -16,7 +16,7 @@ data:
           - targets: ['prometheus:9090']
       - job_name: 'flask-app'
         static_configs:
-          - targets: ['flask:5050']
+          - targets: ['flask-service:5050']
       - job_name: 'node-exporter'
         static_configs:
           - targets: ['node-exporter:9100']

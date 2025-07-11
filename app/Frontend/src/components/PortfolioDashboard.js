@@ -192,6 +192,7 @@ const PortfolioDashboard = () => {
     setLoading(true);
     setError('');
     try {
+      console.log('Fetching portfolio...');
       const response = await fetch(`${API_BASE}/api/portfolio`, {
         method: 'GET',
         credentials: 'include',
@@ -199,8 +200,10 @@ const PortfolioDashboard = () => {
           'Content-Type': 'application/json'
         }
       });
+      console.log('Portfolio response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Portfolio data received:', data);
         // Handle different response formats
         const portfolioItems = data.portfolio || data.investments || data || [];
         setStocks(Array.isArray(portfolioItems) ? portfolioItems : []);
@@ -209,12 +212,15 @@ const PortfolioDashboard = () => {
         setPortfolioData(histData);
       } else if (response.status === 401) {
         // Session expired
+        console.log('Session expired, need to re-login');
         handleLogout();
       } else {
         const errorData = await response.json();
+        console.error('Portfolio fetch error:', errorData);
         setError(`Failed to fetch portfolio: ${errorData.message || response.statusText}`);
       }
     } catch (err) {
+      console.error('Network error:', err);
       setError(`Network error: ${err.message}`);
     } finally {
       setLoading(false);
@@ -231,8 +237,10 @@ const PortfolioDashboard = () => {
           'Content-Type': 'application/json',
         }
       });
+      console.log('Analytics response:', response);
       if (response.ok) {
         const data = await response.json();
+        console.log('Analytics data:', data);
         setAnalytics(data.analytics);
       } else {
         console.error('Failed to fetch analytics');
@@ -251,8 +259,10 @@ const PortfolioDashboard = () => {
           'Content-Type': 'application/json',
         }
       });
+      console.log('Market response:', response);
       if (response.ok) {
         const data = await response.json();
+        console.log('Market data:', data);
         setMarketData(Array.isArray(data.top_gainers) ? data.top_gainers : []);
       } else {
         console.error('Failed to fetch market data');
@@ -265,6 +275,7 @@ const PortfolioDashboard = () => {
   // Search for specific stock - GET /api/stocks/<ticker>
   const searchStock = async () => {
     if (!searchTicker) return;
+    
     try {
       const response = await fetch(`${API_BASE}/api/stocks/${searchTicker.toUpperCase()}`, {
         credentials: 'include',
@@ -272,6 +283,7 @@ const PortfolioDashboard = () => {
           'Content-Type': 'application/json',
         }
       });
+      
       if (response.ok) {
         const data = await response.json();
         setTickerData(data);
@@ -280,6 +292,7 @@ const PortfolioDashboard = () => {
         setTickerData(null);
       }
     } catch (error) {
+      console.error('Stock search error:', error);
       setError(`Failed to search for ${searchTicker}`);
     }
   };
