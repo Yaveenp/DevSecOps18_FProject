@@ -52,9 +52,9 @@ def record_request_data(response):
 app.secret_key = 'your-secret-key-change-in-production'
 
 # Alpha Vantage API Key - Set this in environment variables
-ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
+#ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'X6NBB1E83XW59B9M') #API Key for test, should be?
 #ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'TU9HXAGCT30ECLY8')
-#ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'NC7R1MCB064DQ0JE')
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'NC7R1MCB064DQ0JE')
 
 # SQLAlchemy DB config for PostgreSQL
 app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{os.getenv("POSTGRES_USER")}:{os.getenv("POSTGRES_PASSWORD")}@{os.getenv("POSTGRES_HOST")}:{os.getenv("POSTGRES_PORT")}/{os.getenv("POSTGRES_DB")}'
@@ -1017,4 +1017,4 @@ def home():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=5050, debug=True) # Debug mode - Remove before production
+    app.run(host='0.0.0.0', port=5050)
