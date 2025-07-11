@@ -641,25 +641,25 @@ const PortfolioDashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-gray-300 text-sm">Best Performer</p>
-                <p className="text-lg font-bold text-green-400">{analytics.best_performer?.ticker || 'N/A'}</p>
+                <p className="text-lg font-bold text-green-400">{analytics.performance_metrics?.best_performer?.ticker || 'N/A'}</p>
                 <p className="text-sm text-green-300">
-                  {analytics.best_performer?.return ? `+${analytics.best_performer.return}%` : ''}
+                  {analytics.performance_metrics?.best_performer?.change_percent !== undefined ? `+${analytics.performance_metrics.best_performer.change_percent}%` : ''}
                 </p>
               </div>
               <div>
                 <p className="text-gray-300 text-sm">Worst Performer</p>
-                <p className="text-lg font-bold text-red-400">{analytics.worst_performer?.ticker || 'N/A'}</p>
+                <p className="text-lg font-bold text-red-400">{analytics.performance_metrics?.worst_performer?.ticker || 'N/A'}</p>
                 <p className="text-sm text-red-300">
-                  {analytics.worst_performer?.return ? `${analytics.worst_performer.return}%` : ''}
+                  {analytics.performance_metrics?.worst_performer?.change_percent !== undefined ? `${analytics.performance_metrics.worst_performer.change_percent}%` : ''}
                 </p>
               </div>
               <div>
                 <p className="text-gray-300 text-sm">Portfolio Volatility</p>
-                <p className="text-lg font-bold text-white">{analytics.volatility?.toFixed(2) || '0.00'}%</p>
+                <p className="text-lg font-bold text-white">{analytics.portfolio_overview?.total_gain_loss_percent?.toFixed(2) || '0.00'}%</p>
               </div>
               <div>
                 <p className="text-gray-300 text-sm">Sharpe Ratio</p>
-                <p className="text-lg font-bold text-white">{analytics.sharpe_ratio?.toFixed(2) || '0.00'}</p>
+                <p className="text-lg font-bold text-white">{analytics.risk_metrics?.concentration_risk || 'N/A'}</p>
               </div>
             </div>
           </div>

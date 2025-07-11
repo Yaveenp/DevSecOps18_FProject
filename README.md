@@ -142,7 +142,7 @@ DevSecOps18_FProject/
  **Using Docker Compose with buildx option to run localy**
    ```bash
    cd /Docker
-   docker-compose up -d --build --platform linux/amd64,linux/arm64,windows/amd64
+   docker-compose up -d --build
    ``` 
       
  ## Local Option 2 - Kubernetes (with kubeadm)
