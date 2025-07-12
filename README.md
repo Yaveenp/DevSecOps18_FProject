@@ -160,6 +160,17 @@ DevSecOps18_FProject/
    # Check configmaps and secrets
    kubectl get configmap,secret -n financial-portfolio
    ```
+2. Apply Secrets and ConfigMaps:
+   ```bash
+   kubectl apply -f Postgres/postgres-secret.yaml -n financial-portfolio 
+   kubectl apply -f Postgres/postgres-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/flask/flask-secret.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n financial-portfolio
+   # Check configmaps and secrets
+   kubectl get configmap,secret -n financial-portfolio
+   ```
 
 3. Apply Persistent Volumes and Claims (if needed):
    ```bash
@@ -176,6 +187,7 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/Frontend/frontend-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml -n financial-portfolio
+  kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n financial-portfolio
    # Check deployments and pods
    kubectl get deployments,pods -n financial-portfolio
    ```
@@ -187,6 +199,7 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/Frontend/frontend-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/prometheus-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-service.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/node-exporter-service.yaml -n financial-portfolio
    # Check services
    kubectl get services -n financial-portfolio
    ```
@@ -354,6 +367,7 @@ This project uses a Jenkins-based CI/CD pipeline to automate code quality, testi
 Prometheus and Grafana are included as services in the Docker Compose setup. They are automatically started and networked with the backend and frontend.
 
 - **Prometheus** scrapes metrics from the Flask backend at the `/metrics` endpoint.
+- **Node Exporter** is deployed as a DaemonSet and Service in Kubernetes to provide node-level metrics. Prometheus scrapes metrics from node-exporter at `http://node-exporter:9100/metrics`.
 - **Grafana** is pre-configured to use Prometheus as a data source and includes dashboards for API latency and stock market trends.
 
 **Access Grafana:**

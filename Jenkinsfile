@@ -71,6 +71,11 @@ pipeline {
                     sh "kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
 
+                    // Apply node-exporter DaemonSet and Service for node-level metrics
+                    echo "--- Applying node-exporter DaemonSet and Service ---"
+                    sh "kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
+
                     // Deploy application manifests to Kubernetes
                     echo "--- Deploying application manifests ---"
                     sh "kubectl apply -f Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
