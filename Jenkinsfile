@@ -30,6 +30,7 @@ pipeline {
                             apt-get install -y python3 python3-pip
                             apt-get update
                             apt-get install -y python3-venv
+                            chmod -R 777 .
                             python3 -m venv --copies venv
                             . venv/bin/activate
                             pip install --upgrade pip
@@ -53,7 +54,7 @@ pipeline {
         stage('Deploy to Minikube or EKS') {
             agent {
                 docker {
-                    image 'ubuntu:22.04'
+                    image any
                     args '-u root'
                 }
             }
