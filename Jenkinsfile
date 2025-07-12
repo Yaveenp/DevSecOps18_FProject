@@ -20,17 +20,16 @@ pipeline {
                 script {
                     echo "=== Starting Lint Flask and React Code Stage ==="
                     echo "--- Installing Python dependencies ---"
-                    sh 'pip install --no-cache-dir -r app/Backend/requirements.txt'
+                    sh 'sudo pip install --no-cache-dir -r app/Backend/requirements.txt'
                     
                     echo "--- Linting Flask code ---"
-                    sh 'pip install flake8'
                     sh 'flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/'
 
                     echo "--- Installing Node.js & Linting React code ---"
                     sh '''
-                        apt-get update && apt-get install -y npm
-                        npm install --prefix app/Frontend
-                        npm run lint --prefix app/Frontend
+                        sudo apt-get update && apt-get install -y npm
+                        sudo npm install --prefix app/Frontend
+                        sudo npm run lint --prefix app/Frontend
                     '''
                 }
             }
@@ -45,7 +44,6 @@ pipeline {
             steps {
                 script {
                     echo "=== Starting Run Unit Tests for Backend Stage ==="
-                    sh 'pip install --no-cache-dir -r app/Backend/requirements.txt'
                     sh 'pytest app/Backend/'
                 }
             }
