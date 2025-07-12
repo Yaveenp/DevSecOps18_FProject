@@ -17,6 +17,7 @@ pipeline {
             agent {
                 docker {
                     image 'cimg/node:20.5.1-browsers'
+                    args '-u root'
                 }
             }
             steps {
@@ -53,6 +54,7 @@ pipeline {
             agent {
                 docker {
                     image 'ubuntu:22.04'
+                    args '-u root'
                 }
             }
             steps {
