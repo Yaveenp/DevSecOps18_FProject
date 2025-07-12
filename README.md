@@ -138,6 +138,7 @@ DevSecOps18_FProject/
    cd DevSecOps18_FProject
    ```
 
+
  ## Local Option 1 - Docker Compose
  **Using Docker Compose with buildx option to run localy**
    ```bash
@@ -276,6 +277,51 @@ This project implements several DevSecOps security practices:
 - Unit and integration tests for backend and frontend
 - Security and compliance checks in CI/CD
 - Manual and automated API endpoint testing
+
+---
+
+## ⚙️ CI/CD Pipeline Overview
+
+This project uses a Jenkins-based CI/CD pipeline to automate code quality, testing, containerization, and deployment to Kubernetes.
+
+### Pipeline Stages
+
+1. **Lint Flask and React Code**
+   - Runs `flake8` on backend Python files for style and error checking.
+   - Installs frontend dependencies and runs ESLint for React/TypeScript code.
+
+2. **Run Unit Tests for Backend**
+   - Installs backend Python dependencies.
+   - Executes backend unit tests with `pytest`.
+
+3. **Build and Push Docker Images**
+   - Logs in to Docker Hub using Jenkins credentials.
+   - Builds multi-architecture Docker images for backend and frontend using Docker Buildx.
+   - Pushes images to Docker Hub.
+
+4. **Deploy to Minikube or EKS**
+   - Applies Kubernetes secrets and configmaps.
+   - Deploys backend, frontend, database, and ingress manifests to the `financial-portfolio` namespace.
+   - Checks resource status (configmaps, secrets, pods, services, ingress, etc.).
+
+5. **Run Prometheus and Grafana**
+   - Deploys monitoring tools (Prometheus and Grafana) to Kubernetes.
+
+6. **Perform API Testing**
+   - Runs API tests against the live backend deployment using `pytest`.
+
+7. **Post Actions**
+   - Cleans up Docker resources after pipeline completion.
+
+### Automation Highlights
+
+- All stages include clear logging for traceability.
+- Secure Docker Hub authentication via Jenkins credentials.
+- Multi-arch image builds for compatibility.
+- Full Kubernetes deployment and status checks.
+- Automated code quality and API testing.
+
+**See `Jenkinsfile` for the full pipeline implementation.**
 
 ---
 
