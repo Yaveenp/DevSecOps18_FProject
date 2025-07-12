@@ -127,6 +127,9 @@ pipeline {
         always {
             echo "=== Pipeline Complete: Cleaning up Docker resources ==="
             sh 'docker system prune -f'
+            echo "=== Pipeline Complete: Cleaning up Workspace ==="
+            sh 'rm -rf $WORKSPACE/*'
+            
         }
     }
 }
