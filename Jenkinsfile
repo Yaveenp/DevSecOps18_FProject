@@ -25,10 +25,10 @@ pipeline {
                         echo "=== Starting Lint Flask and React Code Stage ==="
                         echo "--- Setting up Python environment for linting ---"
                         sh '''
-                            sudo apt-get update
-                            sudo apt-get install -y python3 python3-pip
-                            sudo apt-get update
-                            sudo apt-get install -y python3-venv
+                            apt-get update
+                            apt-get install -y python3 python3-pip
+                            apt-get update
+                            apt-get install -y python3-venv
                             python3 -m venv venv
                             . venv/bin/activate
                             pip install --upgrade pip
@@ -60,11 +60,11 @@ pipeline {
                     script {
                         echo "=== Installing kubectl ==="
                         sh '''
-                            sudo apt-get clean
-                            sudo apt-get update
-                            sudo apt-get install -y apt-transport-https ca-certificates curl
+                            apt-get clean
+                            apt-get update
+                            apt-get install -y apt-transport-https ca-certificates curl
                             curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-                            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                         '''
                         echo "=== Starting Deploy to Kubernetes Stage ==="
                         sh "kubectl apply -f Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
