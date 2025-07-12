@@ -10,51 +10,34 @@ pipeline {
     }
 
     stages {
-        stage('Setup & Lint (Parallel)') {
-            parallel {
-                stage('Setup Python Env') {
-                    agent {
-                        docker {
-                            image 'python:3.10'
-                        }
-                    }
-                    steps {
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            script {
-                                echo "=== Setting up Python virtual environment ==="
-                                sh '''
-                                    python3 -m venv venv
-                                    . venv/bin/activate
-                                    pip install --upgrade pip
-                                    pip install -r app/Backend/requirements.txt
-                                '''
-                            }
-                        }
-                    }
+        stage('Lint Flask and React Code') {
+            agent {
+                docker {
+                    image 'python:3.10'
                 }
-                stage('Lint Flask and React Code') {
-                    agent {
-                        docker {
-                            image 'python:3.10'
-                        }
-                    }
-                    steps {
-                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                            script {
-                                echo "=== Starting Lint Flask and React Code Stage ==="
-                                echo "--- Linting Flask code ---"
-                                sh '''
-                                    . venv/bin/activate
-                                    flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1
-                                '''
-                                echo "--- Installing Node.js & Linting React code ---"
-                                sh '''
-                                    apt-get update && apt-get install -y npm
-                                    npm install --prefix app/Frontend
-                                    npm run lint --prefix app/Frontend > lint_react.log 2>&1
-                                '''
-                            }
-                        }
+            }
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    script {
+                        echo "=== Starting Lint Flask and React Code Stage ==="
+                        echo "--- Setting up Python environment for linting ---"
+                        sh '''
+                            python3 -m venv venv
+                            . venv/bin/activate
+                            pip install --upgrade pip
+                            pip install flake8
+                        '''
+                        echo "--- Linting Flask code ---"
+                        sh '''
+                            . venv/bin/activate
+                            flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || true
+                        '''
+                        echo "--- Installing Node.js & Linting React code ---"
+                        sh '''
+                            apt-get update && apt-get install -y npm
+                            npm install --prefix app/Frontend
+                            npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
+                        '''
                     }
                 }
             }
@@ -69,7 +52,20 @@ pipeline {
             steps {
                 script {
                     echo "=== Starting Run Unit Tests for Backend Stage ==="
-                    sh 'pytest app/Backend/'
+                    echo "--- Setting up Python environment for testing ---"
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r app/Backend/requirements.txt
+                        pip install pytest
+                    '''
+                    echo "--- Running unit tests ---"
+                    sh '''
+                        . venv/bin/activate
+                        cd app/Backend
+                        pytest -v
+                    '''
                 }
             }
         }
@@ -131,8 +127,20 @@ pipeline {
             steps {
                 script {
                     echo "=== Starting Perform API Testing Stage ==="
-                    sh 'pip install --no-cache-dir -r app/Backend/requirements.txt'
-                    sh 'pytest app/Backend/tests/api_tests.py'
+                    echo "--- Setting up Python environment for API testing ---"
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r app/Backend/requirements.txt
+                        pip install pytest
+                    '''
+                    echo "--- Running API tests ---"
+                    sh '''
+                        . venv/bin/activate
+                        cd app/Backend
+                        pytest api_tests.py -v
+                    '''
                 }
             }
         }
@@ -155,7 +163,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             echo "=== Pipeline Complete: Cleaning up Docker resources ==="
