@@ -136,27 +136,26 @@ pipeline {
                 }
             }
         }
-    }
 
         stage('Build and Push Docker Images') {
-        agent any
-        steps {
-            script {
-                echo "=== Starting Build and Push Docker Images Stage ==="
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+            agent any
+            steps {
+                script {
+                    echo "=== Starting Build and Push Docker Images Stage ==="
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    }
+
+                    echo "--- Building and pushing backend image ---"
+                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
+
+                    echo "--- Building and pushing frontend image ---"
+                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
                 }
-
-                echo "--- Building and pushing backend image ---"
-                sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
-
-                echo "--- Building and pushing frontend image ---"
-                sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
             }
         }
     }
-
-
+    
     post {
         always {
             echo "=== Pipeline Complete: Cleaning up Docker resources ==="
@@ -165,4 +164,4 @@ pipeline {
             sh 'rm -rf $WORKSPACE/*'
         }
     }
-}
+}    
