@@ -10,47 +10,54 @@ pipeline {
     }
 
     stages {
-        stage('Setup Python Env') {
-            agent {
-                docker {
-                    image 'python:3.10'
-                }
-            }
+        stage('Setup & Lint (Parallel)') {
             steps {
-                script {
-                    echo "=== Setting up Python virtual environment ==="
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r app/Backend/requirements.txt
-                    '''
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    parallel {
+                stage('Setup Python Env') {
+                    agent {
+                        docker {
+                            image 'python:3.10'
+                        }
+                    }
+                    steps {
+                        script {
+                            echo "=== Setting up Python virtual environment ==="
+                            sh '''
+                                python3 -m venv venv
+                                . venv/bin/activate
+                                pip install --upgrade pip
+                                pip install -r app/Backend/requirements.txt
+                            '''
+                        }
+                    }
+                }
+                stage('Lint Flask and React Code') {
+                    agent {
+                        docker {
+                            image 'python:3.10'
+                        }
+                    }
+                    steps {
+                        script {
+                            echo "=== Starting Lint Flask and React Code Stage ==="
+                            echo "--- Linting Flask code ---"
+                            sh '''
+                                . venv/bin/activate
+                                flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1
+                            '''
+                            echo "--- Installing Node.js & Linting React code ---"
+                            sh '''
+                                apt-get update && apt-get install -y npm
+                                npm install --prefix app/Frontend
+                                npm run lint --prefix app/Frontend > lint_react.log 2>&1
+                            '''
+                        }
+                    }
                 }
             }
         }
-        stage('Lint Flask and React Code') {
-            agent {
-                docker {
-                    image 'python:3.10'
-                }
             }
-            steps {
-                script {
-                    echo "=== Starting Lint Flask and React Code Stage ==="
-                    echo "--- Linting Flask code ---"
-                    sh '''
-                        . venv/bin/activate
-                        flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/
-                    '''
-                    echo "--- Installing Node.js & Linting React code ---"
-                    sh '''
-                        apt-get update && apt-get install -y npm
-                        npm install --prefix app/Frontend
-                        npm run lint --prefix app/Frontend
-                    '''
-                }
-            }
-        }
 
         stage('Run Unit Tests for Backend') {
             agent {
@@ -62,24 +69,6 @@ pipeline {
                 script {
                     echo "=== Starting Run Unit Tests for Backend Stage ==="
                     sh 'pytest app/Backend/'
-                }
-            }
-        }
-
-        stage('Build and Push Docker Images') {
-            agent any
-            steps {
-                script {
-                    echo "=== Starting Build and Push Docker Images Stage ==="
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                    }
-
-                    echo "--- Building and pushing backend image ---"
-                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
-
-                    echo "--- Building and pushing frontend image ---"
-                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
                 }
             }
         }
@@ -148,6 +137,25 @@ pipeline {
         }
     }
 
+    stage('Build and Push Docker Images') {
+        agent any
+        steps {
+            script {
+                echo "=== Starting Build and Push Docker Images Stage ==="
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                }
+
+                echo "--- Building and pushing backend image ---"
+                sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
+
+                echo "--- Building and pushing frontend image ---"
+                sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
+            }
+        }
+    }
+
+    
     post {
         always {
             echo "=== Pipeline Complete: Cleaning up Docker resources ==="
@@ -156,4 +164,5 @@ pipeline {
             sh 'rm -rf $WORKSPACE/*'
         }
     }
+}
 }
