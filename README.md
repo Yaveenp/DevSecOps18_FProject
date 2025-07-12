@@ -1,6 +1,6 @@
 # DevSecOps18 Final Project
 
-Welcome to the **DevSecOps18 Final Project** repository! This project demonstrates the integration of DevSecOps principles across a CI/CD pipeline, incorporating secure infrastructure provisioning, container orchestration, and automated security testing. Built as part of a DevSecOps course, it showcases practical application of secure development lifecycle practices.
+Welcome to the **DevSecOps18 Final Project** repository! This project demonstrates the integration of DevSecOps principles in a CI/CD pipeline, including secure infrastructure provisioning, container orchestration, and automated security testing. Built as part of a DevSecOps course, it showcases the practical application of secure development lifecycle practices.
 
 ---
 
@@ -11,8 +11,8 @@ This application helps users track investments, calculate portfolio growth, and 
 ### Key Features
 - Investment portfolio tracking and management
 - Real-time stock market data integration (Alpha Vantage API)
-- Portfolio growth calculations and analytics
-- Secure CRUD operations for portfolio management
+- Portfolio growth calculation and analytics
+- Secure CRUD operations for managing portfolios
 - Containerized microservices architecture
 - Prometheus & Grafana monitoring (API metrics, stock trends)
 - Docker Compose & Kubernetes deployment support
@@ -59,17 +59,9 @@ DevSecOps18_FProject/
 │   └── Frontend/                          # React Frontend (TypeScript)
 │       ├── public/                        # Static index.html and assets
 │       ├── src/                           # React components and logic
-│       │   ├── components/                # Main dashboard and UI components
-│       │   │   ├── PortfolioDashboard.js  # Main dashboard component (JS)
-│       │   │   ├── 1PortfolioDashboard.tsx# Main dashboard component (TS)
-│       │   ├── App.js                     # App entry point
-│       │   ├── App.css                    # App styles
-│       │   ├── index.js                   # React entry point
-│       │   ├── index.css                  # Global styles
 │       ├── package.json                   # Node.js project config
 │       ├── tsconfig.json                  # TypeScript config
 │       ├── Dockerfile                     # Dockerfile for React frontend 
-│       ├── react-dockerfile               # Alternative Dockerfile for React
 │       ├── tailwind.config.js             # Tailwind CSS config
 │       ├── postcss.config.js              # PostCSS config
 │       └── requirements.txt               # Optional frontend Python deps
@@ -78,7 +70,6 @@ DevSecOps18_FProject/
 │   ├── docker-compose.yml                 # Multi-container orchestration (Postgres, Flask, React, Prometheus, Grafana)
 │   ├── init-file/
 │   │   └── init-db.sh                     # DB initialization script (auto-run in container)
-│   └── requirements.txt                   # Optional: Docker build-specific Python deps
 │
 ├── Postgres/                              # Kubernetes manifests for PostgreSQL
 │   ├── postgres-configmap.yaml            # ConfigMap (DB name)
@@ -140,7 +131,7 @@ DevSecOps18_FProject/
 
 
  ## Local Option 1 - Docker Compose
- **Using Docker Compose with buildx option to run localy**
+ **Using Docker Compose with buildx option to run locally**
    ```bash
    cd /Docker
    docker-compose up -d --build
@@ -214,7 +205,12 @@ DevSecOps18_FProject/
    kubectl get all -n financial-portfolio
    ```
 
-This order ensures all dependencies are available before pods start. Adjust file paths if your manifests are in different locations.
+This order ensures all dependencies are available before pods start. Adjust file paths if your manifests are located elsewhere.
+
+8. To access different parts of the application:
+   - Frontend: Open your browser and go to [http://localhost](http://localhost)
+   - Grafana: Open your browser and go to [http://localhost:30300](http://localhost:30300)
+   - Prometheus: Open your browser and go to [http://localhost:30090](http://localhost:30090)
       
 ## Cloud Option 1
 **Deploy to AWS using Terraform:**
@@ -328,8 +324,8 @@ This project uses a Jenkins-based CI/CD pipeline to automate code quality, testi
 ## 📈 API Endpoints
 
 ### User Management
-- `POST /api/portfolio/signup` - Create new user with empty portfolio
-- `POST /api/portfolio/signin` - User signin with portfolio session
+- `POST /api/portfolio/signup` - Create new user with an empty portfolio
+- `POST /api/portfolio/signin` - User sign-in with portfolio session
   
 ### Portfolio Management
 - `GET /api/portfolio` - Retrieve user portfolios
@@ -342,8 +338,8 @@ This project uses a Jenkins-based CI/CD pipeline to automate code quality, testi
 - `GET /api/stocks/market` - Get market trends (top gainers)
 
 ### Portfolio Analytics
-- `GET /api/portfolio/analytics` - Get User portfolio profit/loss data and growth trends with comprehensive analytics
-- `GET /api/portfolio/analytics/history` - Get historical portfolio analytics for the current user
+- `GET /api/portfolio/analytics` - Get user portfolio profit/loss data and growth trends with comprehensive analytics
+- `GET /api/portfolio/analytics/history` - Get historical portfolio analytics for the user
   
 ### Monitoring
 - `/metrics` - Prometheus metrics endpoint (Flask backend)
@@ -356,16 +352,13 @@ This project uses a Jenkins-based CI/CD pipeline to automate code quality, testi
 
 Prometheus and Grafana are included as services in the Docker Compose setup. They are automatically started and networked with the backend and frontend.
 
-- **Prometheus** scrapes metrics from the Flask backend at `/metrics`.
+- **Prometheus** scrapes metrics from the Flask backend at the `/metrics` endpoint.
 - **Grafana** is pre-configured to use Prometheus as a data source and includes dashboards for API latency and stock market trends.
 
 **Access Grafana:**
 - Open your browser and go to: [http://localhost:3000](http://localhost:3000)
 - Default login: `admin` / `admin`
 - Explore dashboards for API and stock market metrics.
-
-### Kubernetes
-- Open your browser and go to: [http://localhost:30300](http://localhost:3000)
 
 **Customizing Dashboards:**
 - Edit or add dashboards in `grafana/dashboards/` and they will be automatically loaded by Grafana after deployment. No need to apply a dashboard ConfigMap.
@@ -374,7 +367,7 @@ Prometheus and Grafana are included as services in the Docker Compose setup. The
 
 ## 📝 License
 
-This project is part of a DevSecOps course and is intended for educational purposes.
+This project is part of a DevSecOps course and is intended for educational purposes only.
 
 ---
 
