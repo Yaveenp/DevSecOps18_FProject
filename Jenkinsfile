@@ -43,7 +43,11 @@ pipeline {
         }
 
         stage('Deploy to Minikube or EKS') {
-            agent any
+            agent {
+                docker {
+                    image 'bitnami/kubectl:latest'
+                }
+            }
             steps {
                 script {
                     echo "=== Starting Deploy to Kubernetes Stage ==="
@@ -91,10 +95,16 @@ pipeline {
         }
 
         stage('Perform API Testing') {
-            agent any
+            agent {
+                docker {
+                    image 'python:3.10'
+                }
+            }
             steps {
                 script {
                     echo "=== Starting Perform API Testing Stage ==="
+                    echo "--- Installing pytest and requests ---"
+                    sh 'pip install pytest requests'
                     echo "--- Running API tests against deployed Kubernetes app ---"
                     sh 'pytest app/Backend/tests/api_tests.py -v'
                 }
