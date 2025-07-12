@@ -56,12 +56,11 @@ pipeline {
                     script {
                         echo "=== Installing kubectl ==="
                         sh '''
-                            mkdir -p /var/lib/apt/lists/partial
-                            apt-get clean
-                            apt-get update
-                            apt-get install -y apt-transport-https ca-certificates curl
+                            sudo apt-get clean
+                            sudo apt-get update
+                            sudo apt-get install -y apt-transport-https ca-certificates curl
                             curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-                            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                         '''
                         echo "=== Starting Deploy to Kubernetes Stage ==="
                         sh "kubectl apply -f Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
