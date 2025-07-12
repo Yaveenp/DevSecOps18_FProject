@@ -112,6 +112,7 @@ DevSecOps18_FProject/
 ├── DevSecOps18 - Financial Portfolio Tracker.drawio  # System architecture diagram
 └── README.md                              # Project documentation 
 
+```
 ---
 
 ## 🚀 Getting Started
