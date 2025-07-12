@@ -25,6 +25,10 @@ pipeline {
                         echo "=== Starting Lint Flask and React Code Stage ==="
                         echo "--- Setting up Python environment for linting ---"
                         sh '''
+                            sudo apt-get update
+                            sudo apt-get install -y python3 python3-pip
+                            sudo apt-get update
+                            sudo apt-get install -y python3-venv
                             python3 -m venv venv
                             . venv/bin/activate
                             pip install --upgrade pip
