@@ -10,6 +10,24 @@ pipeline {
     }
 
     stages {
+        stage('Setup Python Env') {
+            agent {
+                docker {
+                    image 'python:3.10'
+                }
+            }
+            steps {
+                script {
+                    echo "=== Setting up Python virtual environment ==="
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r app/Backend/requirements.txt
+                    '''
+                }
+            }
+        }
         stage('Lint Flask and React Code') {
             agent {
                 docker {
@@ -19,17 +37,16 @@ pipeline {
             steps {
                 script {
                     echo "=== Starting Lint Flask and React Code Stage ==="
-                    echo "--- Installing Python dependencies ---"
-                    sh 'sudo pip install --no-cache-dir -r app/Backend/requirements.txt'
-                    
                     echo "--- Linting Flask code ---"
-                    sh 'flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/'
-
+                    sh '''
+                        . venv/bin/activate
+                        flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/
+                    '''
                     echo "--- Installing Node.js & Linting React code ---"
                     sh '''
-                        sudo apt-get update && apt-get install -y npm
-                        sudo npm install --prefix app/Frontend
-                        sudo npm run lint --prefix app/Frontend
+                        apt-get update && apt-get install -y npm
+                        npm install --prefix app/Frontend
+                        npm run lint --prefix app/Frontend
                     '''
                 }
             }
