@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+agent {
+    docker {
+        image 'python:3.8'
+    }
+}
     environment {
         APP_NAME = 'financial-portfolio'
         BACKEND_IMAGE = "yaveenp/investment-flask:${BUILD_NUMBER}"
@@ -129,7 +133,6 @@ pipeline {
             sh 'docker system prune -f'
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
-            
         }
     }
 }
