@@ -1,4 +1,7 @@
 pipeline {
+    options {
+        timeout(time: 40, unit: 'MINUTES')
+    }
     agent any
 
     environment {
@@ -22,7 +25,7 @@ pipeline {
                         echo "=== Starting Lint Flask and React Code Stage ==="
                         echo "--- Setting up Python environment for linting ---"
                         sh '''
-                            python3 -m venv venv
+                            python -m venv venv
                             . venv/bin/activate
                             pip install --upgrade pip
                             pip install flake8
@@ -45,40 +48,42 @@ pipeline {
         stage('Deploy to Minikube or EKS') {
             agent {
                 docker {
-                    image 'bitnami/kubectl:latest'
+                    image 'lachlanevenson/k8s-kubectl'
                 }
             }
             steps {
-                script {
-                    echo "=== Starting Deploy to Kubernetes Stage ==="
-                    sh "kubectl apply -f Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
+                timeout(time: 10, unit: 'MINUTES') {
+                    script {
+                        echo "=== Starting Deploy to Kubernetes Stage ==="
+                        sh "kubectl apply -f Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
 
-                    echo "--- Applying node-exporter DaemonSet and Service ---"
-                    sh "kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
+                        echo "--- Applying node-exporter DaemonSet and Service ---"
+                        sh "kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
 
-                    echo "--- Deploying app ---"
-                    sh "kubectl apply -f Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f Postgres/postgres-service.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f kubernetes/ingress-nginx-controller.yaml"
+                        echo "--- Deploying app ---"
+                        sh "kubectl apply -f Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f Postgres/postgres-service.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}"
+                        sh "kubectl apply -f kubernetes/ingress-nginx-controller.yaml"
 
-                    echo "--- Kubernetes resource status ---"
-                    sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
-                    sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
-                    sh "kubectl get deployments,pods -n ${KUBE_NAMESPACE}"
-                    sh "kubectl get services -n ${KUBE_NAMESPACE}"
-                    sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
-                    sh "kubectl get all -n ${KUBE_NAMESPACE}"
+                        echo "--- Kubernetes resource status ---"
+                        sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
+                        sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
+                        sh "kubectl get deployments,pods -n ${KUBE_NAMESPACE}"
+                        sh "kubectl get services -n ${KUBE_NAMESPACE}"
+                        sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
+                        sh "kubectl get all -n ${KUBE_NAMESPACE}"
+                    }
                 }
             }
         }
