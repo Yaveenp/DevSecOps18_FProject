@@ -44,4 +44,8 @@ class Get_Ticker:
             return {"error": "Internal server error while fetching stock data."}
 
 if __name__ == '__main__':
-    Get_Ticker.get_stock_quote()
+    # Example usage: Get_Ticker.get_stock_quote('AAPL', 'YOUR_API_KEY')
+    ticker = 'AAPL'
+    api_key = 'YOUR_API_KEY'
+    result = Get_Ticker.get_stock_quote(ticker, api_key)
+    print(result)

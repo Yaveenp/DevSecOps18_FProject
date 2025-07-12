@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from Financial_Portfolio_Tracker.Portfolio_Management.GET.GET_Portfolio import Portfolio
 

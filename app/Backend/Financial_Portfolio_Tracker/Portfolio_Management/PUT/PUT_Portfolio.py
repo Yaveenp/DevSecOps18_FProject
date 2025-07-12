@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 
 class Put_Portfolio:
@@ -6,6 +5,7 @@ class Put_Portfolio:
     Updates an investment by investment id for user
     return: information message
     '''
+    
     @staticmethod
     def update_investment_in_data(portfolio_data, investment_id, quantity=None, buy_price=None):
         """

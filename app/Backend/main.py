@@ -1,10 +1,7 @@
 from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from datetime import datetime, timedelta
-import psycopg2
 import os
-import json
-import psutil
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.ext.mutable import MutableDict
 from Financial_Portfolio_Tracker.Portfolio_Management.PUT.PUT_Portfolio import Put_Portfolio
@@ -16,7 +13,7 @@ from Financial_Portfolio_Tracker.Real_Time_Stock_Data.GET_Ticker import Get_Tick
 from prometheus_client import Counter, Histogram, generate_latest, Gauge, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
-#CORS(app)
+# CORS setup
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:3001",
     "http://frontend:3001",
@@ -24,12 +21,16 @@ CORS(app, supports_credentials=True, origins=[
 ])
 
 # Prometheus metrics
-REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ['method', 'endpoint'])
-REQUEST_LATENCY = Histogram("http_request_duration_seconds", "Request latency", ['endpoint'])
+REQUEST_COUNT = Counter(
+    "http_requests_total", "Total HTTP requests", ['method', 'endpoint'])
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds", "Request latency", ['endpoint'])
 CPU_USAGE = Gauge("container_cpu_usage_percent", "CPU usage percent")
 MEMORY_USAGE = Gauge("container_memory_usage_bytes", "Memory usage in bytes")
-STOCK_MARKET_CALLS = Counter("stock_market_calls_total", "Total calls to /api/stocks/market endpoint")
-TOP_GAINER_PERCENT = Gauge("stock_market_top_gainer_percent", "Top gainer percent change from /api/stocks/market", ['ticker'])
+STOCK_MARKET_CALLS = Counter(
+    "stock_market_calls_total", "Total calls to /api/stocks/market endpoint")
+TOP_GAINER_PERCENT = Gauge(
+    "stock_market_top_gainer_percent", "Top gainer percent change from /api/stocks/market", ['ticker'])
 
 @app.before_request
 def start_timer():
@@ -57,7 +58,13 @@ app.secret_key = 'your-secret-key-change-in-production'
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', 'NC7R1MCB064DQ0JE')
 
 # SQLAlchemy DB config for PostgreSQL
-app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{os.getenv("POSTGRES_USER")}:{os.getenv("POSTGRES_PASSWORD")}@{os.getenv("POSTGRES_HOST")}:{os.getenv("POSTGRES_PORT")}/{os.getenv("POSTGRES_DB")}'
+app.config['SQLALCHEMY_DATABASE_URI'] = (
+    f'postgresql://{os.getenv("POSTGRES_USER")}:'
+    f'{os.getenv("POSTGRES_PASSWORD")}@'
+    f'{os.getenv("POSTGRES_HOST")}:'
+    f'{os.getenv("POSTGRES_PORT")}/'
+    f'{os.getenv("POSTGRES_DB")}'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SQLAlchemy
@@ -74,10 +81,13 @@ class User(db.Model):
     last_login = db.Column(db.TIMESTAMP)
     session_expiration = db.Column(db.TIMESTAMP)
     
-    # Relationship to portfolio files
+# Relationship to portfolio files
     portfolio_files = db.relationship('PortfolioFile', backref='user', lazy=True, cascade='all, delete-orphan')
-    # Relationship to portfolio summaries
-    portfolio_summaries = db.relationship('PortfolioSummary', backref='user', lazy=True, cascade='all, delete-orphan')
+# Relationship to portfolio summaries
+    portfolio_summaries = db.relationship(
+    'PortfolioSummary', backref='user', lazy=True, cascade='all, delete-orphan'
+    )
+
 
 # Portfolio Files model
 class PortfolioFile(db.Model):
@@ -208,6 +218,7 @@ class PortfolioUser:
             return True  
         else:
             return False 
+
 
 def get_current_user():
     """
