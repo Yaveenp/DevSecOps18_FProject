@@ -13,7 +13,7 @@ pipeline {
         stage('Lint Flask and React Code') {
             agent {
                 docker {
-                    image 'python:3.10'
+                    image 'node:20-bullseye'
                 }
             }
             steps {
@@ -34,38 +34,10 @@ pipeline {
                         '''
                         echo "--- Installing Node.js & Linting React code ---"
                         sh '''
-                            apt-get update && apt-get install -y npm
                             npm install --prefix app/Frontend
                             npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
                         '''
                     }
-                }
-            }
-        }
-
-        stage('Run Unit Tests for Backend') {
-            agent {
-                docker {
-                    image 'python:3.10'
-                }
-            }
-            steps {
-                script {
-                    echo "=== Starting Run Unit Tests for Backend Stage ==="
-                    echo "--- Setting up Python environment for testing ---"
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r app/Backend/requirements.txt
-                        pip install pytest
-                    '''
-                    echo "--- Running unit tests ---"
-                    sh '''
-                        . venv/bin/activate
-                        cd app/Backend
-                        pytest -v
-                    '''
                 }
             }
         }
@@ -119,28 +91,12 @@ pipeline {
         }
 
         stage('Perform API Testing') {
-            agent {
-                docker {
-                    image 'python:3.10'
-                }
-            }
+            agent any
             steps {
                 script {
                     echo "=== Starting Perform API Testing Stage ==="
-                    echo "--- Setting up Python environment for API testing ---"
-                    sh '''
-                        python3 -m venv venv
-                        . venv/bin/activate
-                        pip install --upgrade pip
-                        pip install -r app/Backend/requirements.txt
-                        pip install pytest
-                    '''
-                    echo "--- Running API tests ---"
-                    sh '''
-                        . venv/bin/activate
-                        cd app/Backend
-                        pytest api_tests.py -v
-                    '''
+                    echo "--- Running API tests against deployed Kubernetes app ---"
+                    sh 'pytest app/Backend/tests/api_tests.py -v'
                 }
             }
         }
