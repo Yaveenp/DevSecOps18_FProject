@@ -25,7 +25,7 @@ pipeline {
                         echo "=== Starting Lint Flask and React Code Stage ==="
                         echo "--- Setting up Python environment for linting ---"
                         sh '''
-                            python -m venv venv
+                            python3 -m venv venv
                             . venv/bin/activate
                             pip install --upgrade pip
                             pip install flake8
@@ -48,12 +48,18 @@ pipeline {
         stage('Deploy to Minikube or EKS') {
             agent {
                 docker {
-                    image 'lachlanevenson/k8s-kubectl'
+                    image 'ubuntu:22.04'
                 }
             }
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
+                        echo "=== Installing kubectl ==="
+                        sh '''
+                            apt-get update && apt-get install -y curl
+                            curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+                            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                        '''
                         echo "=== Starting Deploy to Kubernetes Stage ==="
                         sh "kubectl apply -f Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
                         sh "kubectl apply -f Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
