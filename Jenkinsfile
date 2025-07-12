@@ -11,9 +11,7 @@ pipeline {
 
     stages {
         stage('Setup & Lint (Parallel)') {
-            steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    parallel {
+            parallel {
                 stage('Setup Python Env') {
                     agent {
                         docker {
@@ -21,14 +19,16 @@ pipeline {
                         }
                     }
                     steps {
-                        script {
-                            echo "=== Setting up Python virtual environment ==="
-                            sh '''
-                                python3 -m venv venv
-                                . venv/bin/activate
-                                pip install --upgrade pip
-                                pip install -r app/Backend/requirements.txt
-                            '''
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            script {
+                                echo "=== Setting up Python virtual environment ==="
+                                sh '''
+                                    python3 -m venv venv
+                                    . venv/bin/activate
+                                    pip install --upgrade pip
+                                    pip install -r app/Backend/requirements.txt
+                                '''
+                            }
                         }
                     }
                 }
@@ -39,25 +39,26 @@ pipeline {
                         }
                     }
                     steps {
-                        script {
-                            echo "=== Starting Lint Flask and React Code Stage ==="
-                            echo "--- Linting Flask code ---"
-                            sh '''
-                                . venv/bin/activate
-                                flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1
-                            '''
-                            echo "--- Installing Node.js & Linting React code ---"
-                            sh '''
-                                apt-get update && apt-get install -y npm
-                                npm install --prefix app/Frontend
-                                npm run lint --prefix app/Frontend > lint_react.log 2>&1
-                            '''
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            script {
+                                echo "=== Starting Lint Flask and React Code Stage ==="
+                                echo "--- Linting Flask code ---"
+                                sh '''
+                                    . venv/bin/activate
+                                    flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1
+                                '''
+                                echo "--- Installing Node.js & Linting React code ---"
+                                sh '''
+                                    apt-get update && apt-get install -y npm
+                                    npm install --prefix app/Frontend
+                                    npm run lint --prefix app/Frontend > lint_react.log 2>&1
+                                '''
+                            }
                         }
                     }
                 }
             }
         }
-            }
 
         stage('Run Unit Tests for Backend') {
             agent {
@@ -137,7 +138,7 @@ pipeline {
         }
     }
 
-    stage('Build and Push Docker Images') {
+        stage('Build and Push Docker Images') {
         agent any
         steps {
             script {
@@ -155,7 +156,7 @@ pipeline {
         }
     }
 
-    
+
     post {
         always {
             echo "=== Pipeline Complete: Cleaning up Docker resources ==="
@@ -164,5 +165,4 @@ pipeline {
             sh 'rm -rf $WORKSPACE/*'
         }
     }
-}
 }
