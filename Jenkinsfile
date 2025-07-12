@@ -14,6 +14,8 @@ pipeline {
                 script {
                     echo "=== Starting Lint Flask and React Code Stage ==="
                     // Linting Flask code for style and errors
+                    echo "--- Installing Python dependencies ---"
+                    sh 'pip install -r app/Backend/requirements.txt'
                     echo "--- Linting Flask code ---"
                     sh 'flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/'
 
@@ -29,9 +31,6 @@ pipeline {
             steps {
                 script {
                     echo "=== Starting Run Unit Tests for Backend Stage ==="
-                    // Install Python dependencies and run backend tests
-                    echo "--- Installing Python dependencies ---"
-                    sh 'pip install -r app/Backend/requirements.txt'
                     echo "--- Running backend tests ---"
                     sh 'pytest app/Backend/'
                 }

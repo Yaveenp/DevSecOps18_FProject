@@ -24,3 +24,4 @@ zope.interface==7.2
 prometheus_client==0.20.0
 psutil
 pytest
+flake8
