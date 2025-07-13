@@ -102,6 +102,9 @@ pipeline {
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
+            environment {
+                KUBECONFIG = '/root/.kube/config'
+            }
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     echo "=== Installing kubectl ==="
