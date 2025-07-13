@@ -144,8 +144,10 @@ pipeline {
                         curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
                         install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                     '''
-                            echo "=== Creating Kubernetes Namespace if not exists ==="
-                            sh "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                    
+                    echo "=== Creating Kubernetes Namespace if not exists ==="
+                    sh "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                    
                     echo "=== Starting Deploy to Kubernetes Stage ==="
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-pv.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-pvc.yaml -n ${KUBE_NAMESPACE}"
@@ -155,11 +157,15 @@ pipeline {
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
-
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-pvc.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-configmap.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-secret.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml -n ${KUBE_NAMESPACE}"
+                    
                     echo "--- Applying node-exporter DaemonSet and Service ---"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
-
+                    
                     echo "--- Deploying app ---"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-service.yaml -n ${KUBE_NAMESPACE}"
@@ -169,7 +175,11 @@ pipeline {
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
-
+                    
+                    echo "=== Starting Run Prometheus and Grafana Stage ==="
+                    sh "kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml"
+                    sh "kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml"
+                    
                     echo "--- Kubernetes resource status ---"
                     sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
                     sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
@@ -177,49 +187,25 @@ pipeline {
                     sh "kubectl get services -n ${KUBE_NAMESPACE}"
                     sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
                     sh "kubectl get all -n ${KUBE_NAMESPACE}"
-
-                        echo "--- Waiting for all pods to be ready ---"
-                        sh '''
-                            for i in {1..30}; do
-                              NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
-                              if [ "$NOT_READY" -eq 0 ]; then
-                                echo "All pods are running and ready."
-                                break
-                              fi
-                              echo "Waiting for pods to be ready... ($i/30)"
-                              sleep 180
-                            done
-                            if [ "$NOT_READY" -ne 0 ]; then
-                              echo "Timeout waiting for pods to be ready. Check pod status manually."
-                              kubectl get pods -n ${KUBE_NAMESPACE}
-                              exit 1
-                            fi
-                        '''
+                    
+                    echo "--- Waiting for all pods to be ready ---"
+                    sh '''
+                        for i in {1..30}; do
+                          NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                          if [ "$NOT_READY" -eq 0 ]; then
+                            echo "All pods are running and ready."
+                            break
+                          fi
+                          echo "Waiting for pods to be ready... ($i/30)"
+                          sleep 180
+                        done
+                        if [ "$NOT_READY" -ne 0 ]; then
+                          echo "Timeout waiting for pods to be ready. Check pod status manually."
+                          kubectl get pods -n ${KUBE_NAMESPACE}
+                          exit 1
+                        fi
+                    '''
                 }
-            }
-        }
-
-        stage('Run Prometheus and Grafana') {
-            agent {
-                docker {
-                    image 'ubuntu:22.04'
-                    args '-u root --label pipeline=${APP_NAME}'
-                }
-            }
-            environment {
-                KUBECONFIG = '/root/.kube/config'
-            }
-            steps {
-                echo "=== Installing kubectl ==="
-                sh '''
-                    apt-get update
-                    apt-get install -y apt-transport-https ca-certificates curl
-                    curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-                    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-                '''
-                echo "=== Starting Run Prometheus and Grafana Stage ==="
-                sh "kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml"
-                sh "kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml"
             }
         }
 
@@ -261,6 +247,15 @@ pipeline {
             ''', returnStatus: true)
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
+            echo "=== Pipeline Complete: Ensuring kubectl is installed for cleanup ==="
+            sh '''
+              if ! command -v kubectl > /dev/null 2>&1; then
+                apt-get update
+                apt-get install -y apt-transport-https ca-certificates curl
+                curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+                install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+              fi
+            '''
             echo "=== Pipeline Complete: Cleaning up Kubernetes resources ==="
             sh '''
               if command -v kubectl > /dev/null 2>&1; then
