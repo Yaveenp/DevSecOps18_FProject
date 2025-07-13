@@ -147,6 +147,8 @@ pipeline {
                             echo "=== Creating Kubernetes Namespace if not exists ==="
                             sh "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     echo "=== Starting Deploy to Kubernetes Stage ==="
+                    sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-pv.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-pvc.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}"
