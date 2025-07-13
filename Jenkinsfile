@@ -19,7 +19,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.10'
-                    args '-u root'
+                    args '-u root --label pipeline=${APP_NAME}'
                 }
             }
             steps {
@@ -42,7 +42,7 @@ pipeline {
             agent {
                 docker {
                     image 'node:20-bullseye'
-                    args '-u root'
+                    args '-u root --label pipeline=${APP_NAME}'
                 }
             }
             steps {
@@ -60,11 +60,24 @@ pipeline {
         
 
         stage('Build and Push Docker Images') {
-            agent any
+            agent {
+                docker {
+                    image 'docker:24.0.0-dind'
+                    args '-u root --privileged -v /var/run/docker.sock:/var/run/docker.sock --label pipeline=${APP_NAME}'
+                }
+            }
             steps {
                 timeout(time: 20, unit: 'MINUTES') {
                     script {
                         echo "=== Starting Build and Push Docker Images Stage ==="
+                        # Install Buildx if not present
+                        sh '''
+                            if ! docker buildx version > /dev/null 2>&1; then
+                              mkdir -p ~/.docker/cli-plugins/
+                              wget https://github.com/docker/buildx/releases/download/v0.12.0/buildx-v0.12.0.linux-amd64 -O ~/.docker/cli-plugins/docker-buildx
+                              chmod +x ~/.docker/cli-plugins/docker-buildx
+                            fi
+                        '''
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                             sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                         }
@@ -83,7 +96,7 @@ pipeline {
             agent {
                 docker {
                     image 'ubuntu:22.04'
-                    args '-u root'
+                    args '-u root --label pipeline=${APP_NAME}'
                 }
             }
             steps {
@@ -144,6 +157,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.10'
+                    args '--label pipeline=${APP_NAME}'
                 }
             }
             steps {
@@ -157,8 +171,11 @@ pipeline {
 
     post {
         always {
-            echo "=== Pipeline Complete: Cleaning up Docker resources ==="
-            sh 'docker system prune -f || true'
+            echo "=== Pipeline Complete: Cleaning up Docker images used by this pipeline ==="
+            sh "docker rmi -f ${BACKEND_IMAGE} || true"
+            sh "docker rmi -f ${FRONTEND_IMAGE} || true"
+            echo "=== Pipeline Complete: Removing stopped containers with pipeline label ==="
+            sh "docker container rm $(docker ps -a -q --filter \"label=pipeline=${APP_NAME}\" --filter \"status=exited\") || true"
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
         }
