@@ -114,6 +114,11 @@ pipeline {
 
                         echo "--- Building and pushing frontend image ---"
                         sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend"
+                        // Update image tags in Kubernetes YAML files
+                        def backendTag = env.BUILD_NUMBER ?: 'latest'
+                        def frontendTag = env.BUILD_NUMBER ?: 'latest'
+                        sh "sed -i 's|image: yaveenp/investment-flask:.*|image: yaveenp/investment-flask:${backendTag}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml"
+                        sh "sed -i 's|image: yaveenp/investment-frontend:.*|image: yaveenp/investment-frontend:${frontendTag}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml"
                     }
                 }
             }
@@ -139,6 +144,8 @@ pipeline {
                         curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
                         install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                     '''
+                            echo "=== Creating Kubernetes Namespace if not exists ==="
+                            sh "kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                     echo "=== Starting Deploy to Kubernetes Stage ==="
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
