@@ -151,14 +151,14 @@ pipeline {
                 }
             }
         }
-
-    post {
-        always {
-            echo "=== Pipeline Complete: Cleaning up Docker resources ==="
-            sh 'docker system prune -f || true'
-            echo "=== Pipeline Complete: Cleaning up Workspace ==="
-            sh 'rm -rf $WORKSPACE/*'
-        }
     }
+}
+
+post {
+    always {
+        echo "=== Pipeline Complete: Cleaning up Docker resources ==="
+        sh 'docker system prune -f || true'
+        echo "=== Pipeline Complete: Cleaning up Workspace ==="
+        sh 'rm -rf $WORKSPACE/*'
     }
 }
