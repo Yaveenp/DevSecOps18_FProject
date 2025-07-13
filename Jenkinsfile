@@ -16,45 +16,39 @@ pipeline {
         stage('Lint Code') {
             parallel {
                 stage('Lint Flask Code') {
-                    agent {
-                        docker {
-                            image 'python:3.10'
-                            args '-u root'
-                        }
-                    }
+                    agent any
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             script {
                                 echo "=== Starting Lint Flask Code Stage ==="
-                                sh '''
-                                    apt-get update
-                                    apt-get install -y python3-venv
-                                    chmod -R 777 .
-                                    python3 -m venv --copies venv
-                                    . venv/bin/activate
-                                    pip install --upgrade pip
-                                    pip install flake8
-                                    flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || true
-                                '''
+                                docker.image('python:3.10').inside('-u root') {
+                                    sh '''
+                                        apt-get update
+                                        apt-get install -y python3-venv
+                                        chmod -R 777 .
+                                        python3 -m venv --copies venv
+                                        . venv/bin/activate
+                                        pip install --upgrade pip
+                                        pip install flake8
+                                        flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || true
+                                    '''
+                                }
                             }
                         }
                     }
                 }
                 stage('Lint React Code') {
-                    agent {
-                        docker {
-                            image 'node:20-bullseye'
-                            args '-u root'
-                        }
-                    }
+                    agent any
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             script {
                                 echo "=== Starting Lint React Code Stage ==="
-                                sh '''
-                                    npm install --prefix app/Frontend
-                                    npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
-                                '''
+                                docker.image('node:20-bullseye').inside('-u root') {
+                                    sh '''
+                                        npm install --prefix app/Frontend
+                                        npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
+                                    '''
+                                }
                             }
                         }
                     }
@@ -66,68 +60,67 @@ pipeline {
         stage('Build and Push Docker Images') {
             agent any
             steps {
-                script {
-                    echo "=== Starting Build and Push Docker Images Stage ==="
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                timeout(time: 20, unit: 'MINUTES') {
+                    script {
+                        echo "=== Starting Build and Push Docker Images Stage ==="
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        }
+
+                        echo "--- Building and pushing backend image ---"
+                        sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
+
+                        echo "--- Building and pushing frontend image ---"
+                        sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
                     }
-
-                    echo "--- Building and pushing backend image ---"
-                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push ."
-
-                    echo "--- Building and pushing frontend image ---"
-                    sh "docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push ."
                 }
             }
         }
 
         stage('Deploy to Minikube or EKS') {
-            agent {
-                docker {
-                    image any
-                    args '-u root'
-                }
-            }
+            agent any
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
                         echo "=== Installing kubectl ==="
-                        sh '''
-                            apt-get clean
-                            apt-get update
-                            apt-get install -y apt-transport-https ca-certificates curl
-                            curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
-                            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-                        '''
-                        echo "=== Starting Deploy to Kubernetes Stage ==="
-                        sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
+                        docker.image('ubuntu:22.04').inside('-u root') {
+                            sh '''
+                                apt-get clean
+                                apt-get update
+                                apt-get install -y apt-transport-https ca-certificates curl
+                                curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+                                install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            '''
+                            echo "=== Starting Deploy to Kubernetes Stage ==="
+                            sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-secret.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
 
-                        echo "--- Applying node-exporter DaemonSet and Service ---"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
+                            echo "--- Applying node-exporter DaemonSet and Service ---"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}"
 
-                        echo "--- Deploying app ---"
-                        sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-service.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}"
-                        sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
+                            echo "--- Deploying app ---"
+                            sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-deployment.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/Postgres/postgres-service.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}"
+                            sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
 
-                        echo "--- Kubernetes resource status ---"
-                        sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
-                        sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
-                        sh "kubectl get deployments,pods -n ${KUBE_NAMESPACE}"
-                        sh "kubectl get services -n ${KUBE_NAMESPACE}"
-                        sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
-                        sh "kubectl get all -n ${KUBE_NAMESPACE}"
+                            echo "--- Kubernetes resource status ---"
+                            sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
+                            sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
+                            sh "kubectl get deployments,pods -n ${KUBE_NAMESPACE}"
+                            sh "kubectl get services -n ${KUBE_NAMESPACE}"
+                            sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
+                            sh "kubectl get all -n ${KUBE_NAMESPACE}"
+                        }
                     }
                 }
             }
@@ -145,21 +138,19 @@ pipeline {
         }
 
         stage('Perform API Testing') {
-            agent {
-                docker {
-                    image 'python:3.10'
-                }
-            }
+            agent any
             steps {
                 script {
                     echo "=== Starting Perform API Testing Stage ==="
-                    echo "--- Installing pytest and requests ---"
-                    sh 'pip install pytest requests'
-                    echo "--- Running API tests against deployed Kubernetes app ---"
-                    sh 'pytest app/Backend/tests/api_tests.py -v'
+                    docker.image('python:3.10').inside() {
+                        echo "--- Installing pytest and requests ---"
+                        sh 'pip install pytest requests'
+                        echo "--- Running API tests against deployed Kubernetes app ---"
+                        sh 'pytest app/Backend/tests/api_tests.py -v'
+                    }
                 }
             }
-    }
+        }
 
     post {
         always {
