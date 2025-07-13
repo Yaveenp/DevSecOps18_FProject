@@ -175,6 +175,24 @@ pipeline {
                     sh "kubectl get services -n ${KUBE_NAMESPACE}"
                     sh "kubectl get ingress -n ${KUBE_NAMESPACE}"
                     sh "kubectl get all -n ${KUBE_NAMESPACE}"
+
+                        echo "--- Waiting for all pods to be ready ---"
+                        sh '''
+                            for i in {1..10}; do
+                              NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                              if [ "$NOT_READY" -eq 0 ]; then
+                                echo "All pods are running and ready."
+                                break
+                              fi
+                              echo "Waiting for pods to be ready... ($i/10)"
+                              sleep 10
+                            done
+                            if [ "$NOT_READY" -ne 0 ]; then
+                              echo "Timeout waiting for pods to be ready. Check pod status manually."
+                              kubectl get pods -n ${KUBE_NAMESPACE}
+                              exit 1
+                            fi
+                        '''
                 }
             }
         }
@@ -214,6 +232,11 @@ pipeline {
                 echo "=== Starting Perform API Testing Stage ==="
                 sh 'pip install pytest requests'
                 echo "--- Running API tests against deployed Kubernetes app ---"
+                // Get NodePort for frontend-service
+                FRONTEND_PORT=$(kubectl get svc frontend-service -n ${KUBE_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
+                echo "Frontend NodePort: $FRONTEND_PORT"
+                // Replace the test endpoint to use localhost and NodePort
+                sed -i "s|http://flask-app:5050|http://localhost:$FRONTEND_PORT|g" app/Backend/tests/api_tests.py
                 sh 'pytest app/Backend/tests/api_tests.py -v'
             }
         }

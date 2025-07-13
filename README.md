@@ -356,6 +356,8 @@ docker run -d \
 ```
 
 This setup allows Jenkins pipeline stages to interact directly with the local Kubernetes cluster, enabling automated deployments and resource management during CI/CD runs.
+
+
 ---
 
 ## 📈 API Endpoints
