@@ -134,7 +134,7 @@ DevSecOps18_FProject/
  ## Local Option 1 - Docker Compose
  **Using Docker Compose with buildx option to run locally**
    ```bash
-   cd /Docker
+   cd Docker/
    docker-compose up -d --build
    ``` 
       

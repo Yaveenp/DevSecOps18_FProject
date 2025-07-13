@@ -13,45 +13,55 @@ pipeline {
     }
 
     stages {
-        stage('Lint Flask and React Code') {
-            agent {
-                docker {
-                    image 'cimg/node:20.5.1-browsers'
-                    args '-u root'
+        stage('Lint Code') {
+            parallel {
+                stage('Lint Flask Code') {
+                    agent {
+                        docker {
+                            image 'python:3.10'
+                            args '-u root'
+                        }
+                    }
+                    steps {
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            script {
+                                echo "=== Starting Lint Flask Code Stage ==="
+                                sh '''
+                                    apt-get update
+                                    apt-get install -y python3-venv
+                                    chmod -R 777 .
+                                    python3 -m venv --copies venv
+                                    . venv/bin/activate
+                                    pip install --upgrade pip
+                                    pip install flake8
+                                    flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || true
+                                '''
+                            }
+                        }
+                    }
                 }
-            }
-            steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    script {
-                        echo "=== Starting Lint Flask and React Code Stage ==="
-                        echo "--- Setting up Python environment for linting ---"
-                        sh '''
-                            apt-get update
-                            apt-get install -y python3 python3-pip
-                            apt-get update
-                            apt-get install -y python3-venv
-                            chmod -R 777 .
-                            python3 -m venv --copies venv
-                            . venv/bin/activate
-                            pip install --upgrade pip
-                            pip install flake8
-                        '''
-                        echo "--- Linting Flask code ---"
-                        sh '''
-                            . venv/bin/activate
-                            flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || true
-                        '''
-                        echo "--- Installing Node.js & Linting React code ---"
-                        sh '''
-                            npm install --prefix app/Frontend
-                            npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
-                        '''
+                stage('Lint React Code') {
+                    agent {
+                        docker {
+                            image 'node:20-bullseye'
+                            args '-u root'
+                        }
+                    }
+                    steps {
+                        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                            script {
+                                echo "=== Starting Lint React Code Stage ==="
+                                sh '''
+                                    npm install --prefix app/Frontend
+                                    npm run lint --prefix app/Frontend > lint_react.log 2>&1 || true
+                                '''
+                            }
+                        }
                     }
                 }
             }
         }
         
-        }
 
         stage('Build and Push Docker Images') {
             agent any
@@ -159,4 +169,5 @@ pipeline {
             sh 'rm -rf $WORKSPACE/*'
         }
     }
-}    
+    }
+}

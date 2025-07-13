@@ -275,7 +275,7 @@ const PortfolioDashboard = () => {
   // Search for specific stock - GET /api/stocks/<ticker>
   const searchStock = async () => {
     if (!searchTicker) return;
-    
+    console.log('Search ticker:', searchTicker);
     try {
       const response = await fetch(`${API_BASE}/api/stocks/${searchTicker.toUpperCase()}`, {
         credentials: 'include',
@@ -283,9 +283,10 @@ const PortfolioDashboard = () => {
           'Content-Type': 'application/json',
         }
       });
-      
+      console.log('API response:', response);
       if (response.ok) {
         const data = await response.json();
+        console.log('API response data:', data);
         setTickerData(data);
       } else {
         setError(`Stock ${searchTicker} not found`);
@@ -458,12 +459,12 @@ const PortfolioDashboard = () => {
     }
   }, [stocks]);
 
-  // Fetch data when authenticated
+  // Fetch data when authenticated and button is pressed
   useEffect(() => {
     if (isAuthenticated) {
       fetchPortfolio();
       fetchAnalytics();
-      fetchMarketOverview();
+
     }
   }, [isAuthenticated]);
 
@@ -554,7 +555,10 @@ const PortfolioDashboard = () => {
             📊 {showAnalytics ? 'Hide' : 'Show'} Analytics
           </button>
           <button
-            onClick={() => setShowMarketOverview(!showMarketOverview)}
+            onClick={() => {
+              if (!showMarketOverview) fetchMarketOverview();
+              setShowMarketOverview(!showMarketOverview);
+            }}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition"
           >
             🌍 {showMarketOverview ? 'Hide' : 'Show'} Market
@@ -584,22 +588,22 @@ const PortfolioDashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-gray-300 text-sm">Current Price</p>
-                <p className="text-2xl font-bold text-white">${tickerData.current_price?.toFixed(2) || 'N/A'}</p>
+                <p className="text-2xl font-bold text-white">${tickerData.real_time_data?.price?.toFixed(2) || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-gray-300 text-sm">Day Change</p>
-                <p className={`text-2xl font-bold ${tickerData.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {tickerData.change >= 0 ? '+' : ''}{tickerData.change?.toFixed(2) || 0}%
+                <p className={`text-2xl font-bold ${parseFloat(tickerData.real_time_data?.change || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}> 
+                  {parseFloat(tickerData.real_time_data?.change || 0) >= 0 ? '+' : ''}{tickerData.real_time_data?.change || '0'}%
                 </p>
               </div>
               <div>
                 <p className="text-gray-300 text-sm">Volume</p>
-                <p className="text-2xl font-bold text-white">{tickerData.volume?.toLocaleString() || 'N/A'}</p>
+                <p className="text-2xl font-bold text-white">{tickerData.real_time_data?.volume?.toLocaleString() || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-gray-300 text-sm">Market Cap</p>
+                <p className="text-gray-300 text-sm">Latest Trading Day</p>
                 <p className="text-2xl font-bold text-white">
-                  {tickerData.market_cap ? `$${(tickerData.market_cap / 1000000000).toFixed(2)}B` : 'N/A'}
+                  {tickerData.real_time_data?.latest_trading_day || 'N/A'}
                 </p>
               </div>
             </div>
