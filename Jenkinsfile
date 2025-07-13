@@ -70,7 +70,7 @@ pipeline {
                 timeout(time: 20, unit: 'MINUTES') {
                     script {
                         echo "=== Starting Build and Push Docker Images Stage ==="
-                        # Install Buildx if not present
+                        // Install Buildx if not present
                         sh '''
                             if ! docker buildx version > /dev/null 2>&1; then
                               mkdir -p ~/.docker/cli-plugins/
