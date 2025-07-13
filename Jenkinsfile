@@ -13,6 +13,22 @@ pipeline {
     }
 
     stages {
+        stage('Test Kubernetes Connection') {
+            agent {
+                docker {
+                    image 'ubuntu:22.04'
+                    args '-u root --label pipeline=${APP_NAME}'
+                }
+            }
+            environment {
+                KUBECONFIG = '/root/.kube/config'
+            }
+            steps {
+                echo "=== Testing Kubernetes Connection ==="
+                sh 'kubectl config get-contexts'
+                sh 'kubectl get nodes'
+            }
+        }
         stage('Lint Code') {
             parallel {
         stage('Lint Flask Code') {
