@@ -292,47 +292,70 @@ This project implements several DevSecOps security practices:
 
 ## ⚙️ CI/CD Pipeline Overview
 
-This project uses a Jenkins-based CI/CD pipeline to automate code quality, testing, containerization, and deployment to Kubernetes.
+This project uses a robust Jenkins-based CI/CD pipeline to automate code quality checks, testing, containerization, and deployment to Kubernetes. Below are the detailed steps and customizations implemented:
 
 ### Pipeline Stages
 
 1. **Lint Flask and React Code**
    - Runs `flake8` on backend Python files for style and error checking.
    - Installs frontend dependencies and runs ESLint for React/TypeScript code.
+   - Uses parallel stages for faster linting of both backend and frontend.
 
 2. **Run Unit Tests for Backend**
    - Installs backend Python dependencies.
    - Executes backend unit tests with `pytest`.
+   - Runs in a clean Python environment for reliability.
 
 3. **Build and Push Docker Images**
    - Logs in to Docker Hub using Jenkins credentials.
    - Builds multi-architecture Docker images for backend and frontend using Docker Buildx.
    - Pushes images to Docker Hub.
+   - Automatically updates image tags in Kubernetes YAML files to use the Jenkins build number, reverting to `latest` if no version is set.
 
 4. **Deploy to Minikube or EKS**
-   - Applies Kubernetes secrets and configmaps.
-   - Deploys backend, frontend, database, and ingress manifests to the `financial-portfolio` namespace.
-   - Checks resource status (configmaps, secrets, pods, services, ingress, etc.).
+   - Installs `kubectl` in the pipeline agent if not present.
+   - Automatically creates the `financial-portfolio` namespace if it does not exist, preventing deployment errors.
+   - Applies Kubernetes secrets, configmaps, deployments, services, and ingress manifests to the correct namespace.
+   - Checks resource status (configmaps, secrets, pods, services, ingress, etc.) for validation.
 
 5. **Run Prometheus and Grafana**
    - Deploys monitoring tools (Prometheus and Grafana) to Kubernetes.
+   - Enables real-time metrics and dashboards for the application.
 
 6. **Perform API Testing**
    - Runs API tests against the live backend deployment using `pytest`.
+   - Installs required Python packages for API testing.
+   - Ensures endpoints are working as expected after deployment.
 
 7. **Post Actions**
-   - Cleans up Docker resources after pipeline completion.
+   - Cleans up Docker images used by the pipeline to save space.
+   - Removes stopped containers with the pipeline label.
+   - Cleans up the Jenkins workspace after pipeline completion.
 
 ### Automation Highlights
 
-- All stages include clear logging for traceability.
-- Secure Docker Hub authentication via Jenkins credentials.
-- Multi-arch image builds for compatibility.
-- Full Kubernetes deployment and status checks.
-- Automated code quality and API testing.
+ - Dynamic image tag updates in manifests for versioned deployments.
+ - Namespace creation logic to prevent deployment failures.
 
 **See `Jenkinsfile` for the full pipeline implementation.**
 
+
+### Test Environment Setup with Docker Desktop and Jenkins
+
+For local testing and development, the pipeline is designed to work seamlessly with Docker Desktop's built-in Kubernetes cluster. Jenkins runs as a container and is configured to access the Kubernetes API by mounting the kubeconfig directory from the host.
+
+To start the Jenkins server container and bind it to your local kubeconfig and persistent Jenkins home, use:
+
+```sh
+docker run -d \
+  --name jenkins-server \
+  -p 8080:8080 -p 50000:50000 \
+  -v ~/.kube:/root/.kube \
+  -v jenkins_home:/var/jenkins_home \
+  jenkins/jenkins:lts
+```
+
+This setup allows Jenkins pipeline stages to interact directly with the local Kubernetes cluster, enabling automated deployments and resource management during CI/CD runs.
 ---
 
 ## 📈 API Endpoints

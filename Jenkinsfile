@@ -180,13 +180,26 @@ pipeline {
         }
 
         stage('Run Prometheus and Grafana') {
-            agent any
-            steps {
-                script {
-                    echo "=== Starting Run Prometheus and Grafana Stage ==="
-                    sh "kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml"
-                    sh "kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml"
+            agent {
+                docker {
+                    image 'ubuntu:22.04'
+                    args '-u root --label pipeline=${APP_NAME}'
                 }
+            }
+            environment {
+                KUBECONFIG = '/root/.kube/config'
+            }
+            steps {
+                echo "=== Installing kubectl ==="
+                sh '''
+                    apt-get update
+                    apt-get install -y apt-transport-https ca-certificates curl
+                    curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+                    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                '''
+                echo "=== Starting Run Prometheus and Grafana Stage ==="
+                sh "kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml"
+                sh "kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml"
             }
         }
 
