@@ -175,7 +175,7 @@ pipeline {
             sh "docker rmi -f ${BACKEND_IMAGE} || true"
             sh "docker rmi -f ${FRONTEND_IMAGE} || true"
             echo "=== Pipeline Complete: Removing stopped containers with pipeline label ==="
-            sh "docker container rm $(docker ps -a -q --filter \"label=pipeline=${APP_NAME}\" --filter \"status=exited\") || true"
+            sh(script: "docker container rm \$(docker ps -a -q --filter 'label=pipeline=${APP_NAME}' --filter 'status=exited') || true", returnStatus: true)
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
         }
