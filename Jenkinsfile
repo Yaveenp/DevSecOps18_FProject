@@ -78,6 +78,9 @@ pipeline {
                               chmod +x ~/.docker/cli-plugins/docker-buildx
                             fi
                         '''
+                        // Create and use buildx builder for multi-platform builds
+                        sh 'docker buildx create --name mybuilder --use'
+                        sh 'docker buildx inspect --bootstrap'
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                             sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                         }
@@ -175,7 +178,12 @@ pipeline {
             sh "docker rmi -f ${BACKEND_IMAGE} || true"
             sh "docker rmi -f ${FRONTEND_IMAGE} || true"
             echo "=== Pipeline Complete: Removing stopped containers with pipeline label ==="
-            sh(script: "docker container rm \$(docker ps -a -q --filter 'label=pipeline=${APP_NAME}' --filter 'status=exited') || true", returnStatus: true)
+            sh(script: '''
+              CONTAINERS=$(docker ps -a -q --filter "label=pipeline=${APP_NAME}" --filter "status=exited")
+              if [ -n "$CONTAINERS" ]; then
+                docker container rm $CONTAINERS
+              fi
+            ''', returnStatus: true)
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
         }
