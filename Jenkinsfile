@@ -180,14 +180,14 @@ pipeline {
 
                         echo "--- Waiting for all pods to be ready ---"
                         sh '''
-                            for i in {1..10}; do
+                            for i in {1..30}; do
                               NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
                               if [ "$NOT_READY" -eq 0 ]; then
                                 echo "All pods are running and ready."
                                 break
                               fi
-                              echo "Waiting for pods to be ready... ($i/10)"
-                              sleep 10
+                              echo "Waiting for pods to be ready... ($i/30)"
+                              sleep 30
                             done
                             if [ "$NOT_READY" -ne 0 ]; then
                               echo "Timeout waiting for pods to be ready. Check pod status manually."
