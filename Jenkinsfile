@@ -187,7 +187,7 @@ pipeline {
                                 break
                               fi
                               echo "Waiting for pods to be ready... ($i/30)"
-                              sleep 60
+                              sleep 180
                             done
                             if [ "$NOT_READY" -ne 0 ]; then
                               echo "Timeout waiting for pods to be ready. Check pod status manually."
@@ -261,6 +261,20 @@ pipeline {
             ''', returnStatus: true)
             echo "=== Pipeline Complete: Cleaning up Workspace ==="
             sh 'rm -rf $WORKSPACE/*'
+            echo "=== Pipeline Complete: Cleaning up Kubernetes resources ==="
+            sh '''
+              if command -v kubectl > /dev/null 2>&1; then
+                echo "Deleting all resources in namespace ${KUBE_NAMESPACE}..."
+                kubectl delete all --all -n ${KUBE_NAMESPACE} || true
+                kubectl delete pvc --all -n ${KUBE_NAMESPACE} || true
+                kubectl delete pv postgres-pv || true
+                kubectl delete configmap --all -n ${KUBE_NAMESPACE} || true
+                kubectl delete secret --all -n ${KUBE_NAMESPACE} || true
+                kubectl delete namespace ${KUBE_NAMESPACE} || true
+              else
+                echo "kubectl not found, skipping Kubernetes cleanup."
+              fi
+            '''
         }
     }
 }
