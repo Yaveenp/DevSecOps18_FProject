@@ -124,7 +124,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to Minikube or EKS') {
+        stage('Deploy to Kubeadm and run resources') {
             agent {
                 docker {
                     image 'ubuntu:22.04'
@@ -157,7 +157,6 @@ pipeline {
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-pvc.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-secret.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml -n ${KUBE_NAMESPACE}"
@@ -177,9 +176,9 @@ pipeline {
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
                     
                     echo "=== Starting Run Prometheus and Grafana Stage ==="
-                    sh "kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml"
-                    sh "kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml"
-                    
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-deployment.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-deployment.yaml -n ${KUBE_NAMESPACE}"
+
                     echo "--- Kubernetes resource status ---"
                     sh "kubectl get configmap,secret -n ${KUBE_NAMESPACE}"
                     sh "kubectl get pv,pvc -n ${KUBE_NAMESPACE}"
