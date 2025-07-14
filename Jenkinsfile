@@ -157,7 +157,7 @@ pipeline {
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}"
-                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-secret.yaml -n ${KUBE_NAMESPACE}"
+                    sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml -n ${KUBE_NAMESPACE}"
                     sh "kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml -n ${KUBE_NAMESPACE}"
                     
