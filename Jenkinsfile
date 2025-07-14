@@ -256,7 +256,7 @@ pipeline {
                 echo "Deleting all resources in namespace ${KUBE_NAMESPACE}..."
                 kubectl delete all --all -n ${KUBE_NAMESPACE} || true
                 kubectl delete pvc --all -n ${KUBE_NAMESPACE} || true
-                kubectl delete pv postgres-pv || true
+                kubectl delete pv postgres-pv-k8s || true
                 kubectl delete configmap --all -n ${KUBE_NAMESPACE} || true
                 kubectl delete secret --all -n ${KUBE_NAMESPACE} || true
                 kubectl delete namespace ${KUBE_NAMESPACE} || true
