@@ -196,7 +196,7 @@ pipeline {
                             break
                           fi
                           echo "Waiting for pods to be ready... ($i/30)"
-                          sleep 30
+                          sleep 60
                         done
                         if [ "$NOT_READY" -ne 0 ]; then
                           echo "Timeout waiting for pods to be ready. Check pod status manually."
