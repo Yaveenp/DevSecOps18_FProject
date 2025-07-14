@@ -189,20 +189,18 @@ pipeline {
                     
                     echo "--- Waiting for all pods to be ready ---"
                     sh '''
-                        for i in {1..30}; do
-                          NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
-                          if [ "$NOT_READY" -eq 0 ]; then
-                            echo "All pods are running and ready."
-                            break
-                          fi
-                          echo "Waiting for pods to be ready... ($i/30)"
-                          sleep 60
-                        done
-                        if [ "$NOT_READY" -ne 0 ]; then
-                          echo "Timeout waiting for pods to be ready. Check pod status manually."
-                          kubectl get pods -n ${KUBE_NAMESPACE}
-                          exit 1
+                    for i in {1..3}; do
+                        NOT_READY=$(kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        if [ "$NOT_READY" -eq 0 ]; then
+                        echo "All pods are running and ready."
+                        exit 0
                         fi
+                        echo "Waiting for pods to be ready... ($i/3)"
+                        kubectl get pods -n ${KUBE_NAMESPACE}
+                        sleep 30
+                    done
+                    echo "Timeout waiting for pods to be ready. Check pod status manually."
+                    exit 1
                     '''
                 }
             }
