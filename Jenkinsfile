@@ -219,13 +219,8 @@ pipeline {
                 echo "=== Starting Perform API Testing Stage ==="
                 sh 'pip install pytest requests'
                 echo "--- Running API tests against deployed Kubernetes app ---"
-                script {
-                    def frontendPort = sh(
-                        script: "kubectl get svc frontend-service -n ${KUBE_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}'",
-                        returnStdout: true
-                    ).trim()
                     echo "Frontend NodePort: ${frontendPort}"
-                    sh "sed -i 's|http://flask-app:5050|http://localhost:${frontendPort}|g' app/Backend/tests/api_tests.py"
+                    sh "sed -i 's|http://flask-app:5050|http://localhost:30300|g' app/Backend/tests/api_tests.py"
                     sh 'pytest app/Backend/tests/api_tests.py -v'
                 }
             }
