@@ -217,11 +217,12 @@ pipeline {
                 echo "=== Starting Perform API Testing Stage ==="
                 sh 'pip install pytest requests'
                 echo "--- Running API tests against deployed Kubernetes app ---"
-                    sh 'pytest app/Backend/tests/api_tests.py -v'
-                }
+                sh "sed -i 's|http://flask-app:5050|http://flask-service:5050|g' app/Backend/tests/api_tests.py"
+                sh 'pytest app/Backend/tests/api_tests.py -v'
             }
         }
-    
+    }
+ 
 
     post {
         always {
