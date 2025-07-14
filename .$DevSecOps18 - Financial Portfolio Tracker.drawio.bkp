@@ -120,7 +120,7 @@
           <mxGeometry x="200" y="20" width="700" height="40" as="geometry" />
         </mxCell>
         <mxCell id="k8s-cluster" value="Kubernetes Cluster" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontStyle=1;fillColor=#EFF3F8;strokeColor=#6C8EBF;dashed=1;strokeWidth=2;" parent="1" vertex="1">
-          <mxGeometry x="80" y="80" width="950" height="570" as="geometry" />
+          <mxGeometry x="80" y="80" width="940" height="680" as="geometry" />
         </mxCell>
         <mxCell id="frontend-deploy" value="Frontend Deployment" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;fontStyle=1" parent="1" vertex="1">
           <mxGeometry x="120" y="150" width="220" height="200" as="geometry" />
