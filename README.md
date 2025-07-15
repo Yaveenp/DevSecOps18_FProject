@@ -160,17 +160,6 @@ DevSecOps18_FProject/
    # Check configmaps and secrets
    kubectl get configmap,secret -n financial-portfolio
    ```
-2. Apply Secrets and ConfigMaps:
-   ```bash
-   kubectl apply -f Postgres/postgres-secret.yaml -n financial-portfolio 
-   kubectl apply -f Postgres/postgres-configmap.yaml -n financial-portfolio
-   kubectl apply -f kubernetes/flask/flask-secret.yaml -n financial-portfolio
-   kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n financial-portfolio
-   kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n financial-portfolio
-   kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n financial-portfolio
-   # Check configmaps and secrets
-   kubectl get configmap,secret -n financial-portfolio
-   ```
 
 3. Apply Persistent Volumes and Claims (if needed):
    ```bash
@@ -187,7 +176,7 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/Frontend/frontend-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml -n financial-portfolio
-  kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n financial-portfolio
    # Check deployments and pods
    kubectl get deployments,pods -n financial-portfolio
    ```
