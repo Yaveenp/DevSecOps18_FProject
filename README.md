@@ -157,6 +157,7 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/Monitoring/prometheus-configmap.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-datasource-configmap.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n financial-portfolio
+   kubectl apply -f kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml -n financial-portfolio
    # Check configmaps and secrets
    kubectl get configmap,secret -n financial-portfolio
    ```
