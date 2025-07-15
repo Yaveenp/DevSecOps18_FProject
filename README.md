@@ -169,7 +169,7 @@ DevSecOps18_FProject/
    kubectl get pv,pvc -n financial-portfolio
    ```
 
-4. Apply Deployments:
+4. Apply Deployments & Services:
    ```bash
    kubectl apply -f Postgres/postgres-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/flask/flask-deployment.yaml -n financial-portfolio
@@ -177,23 +177,17 @@ DevSecOps18_FProject/
    kubectl apply -f kubernetes/Monitoring/prometheus-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-deployment.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n financial-portfolio
-   # Check deployments and pods
-   kubectl get deployments,pods -n financial-portfolio
-   ```
-
-5. Apply Services:
-   ```bash
    kubectl apply -f Postgres/postgres-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/flask/flask-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Frontend/frontend-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/prometheus-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/grafana-service.yaml -n financial-portfolio
    kubectl apply -f kubernetes/Monitoring/node-exporter-service.yaml -n financial-portfolio
-   # Check services
-   kubectl get services -n financial-portfolio
+   # Check deployments and services
+   kubectl get deployments,pods,services -n financial-portfolio
    ```
 
-6. Apply Ingress:
+5. Apply Ingress:
    ```bash
    kubectl apply -f kubernetes/ingress.yaml -n financial-portfolio
    kubectl apply -f kubernetes/ingress-nginx-controller.yaml
@@ -203,7 +197,7 @@ DevSecOps18_FProject/
    kubectl get services -n ingress-nginx  
    ```
 
-7. Final status check:
+6. Final status check:
    ```bash
    kubectl get all -n financial-portfolio
    ```
