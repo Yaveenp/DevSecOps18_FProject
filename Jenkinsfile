@@ -18,6 +18,14 @@ pipeline {
             steps {
                 script {
                     sh '''
+                        if ! command -v curl >/dev/null 2>&1; then
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                echo "Waiting for other apt-get processes to finish..."
+                                sleep 5
+                            done
+                            apt-get update
+                            apt-get install -y curl
+                        fi
                         echo "=== Setting up build environment ==="
                         if [ ! -f "/usr/local/bin/kubectl" ]; then
                             echo "kubectl not found in /usr/local/bin. Downloading..."
@@ -42,6 +50,10 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                    echo "Waiting for other apt-get processes to finish..."
+                                    sleep 5
+                                done
                                 apt-get update
                                 apt-get install -y python3-venv
                                 python3 -m venv venv
@@ -63,6 +75,10 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                    echo "Waiting for other apt-get processes to finish..."
+                                    sleep 5
+                                done
                                 if ! command -v node &> /dev/null; then
                                     apt-get update
                                     apt-get install -y nodejs
@@ -150,6 +166,14 @@ pipeline {
             }
             steps {
                 sh '''
+                    if ! command -v curl >/dev/null 2>&1; then
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                            echo "Waiting for other apt-get processes to finish..."
+                            sleep 5
+                        done
+                        apt-get update
+                        apt-get install -y curl
+                    fi
                     if [ ! -f "/usr/local/bin/kubectl" ]; then
                         echo "kubectl not found in /usr/local/bin. Downloading..."
                         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -177,6 +201,14 @@ pipeline {
                     ]
                     for (res in coreResources) {
                         sh '''
+                            if ! command -v curl >/dev/null 2>&1; then
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                    echo "Waiting for other apt-get processes to finish..."
+                                    sleep 5
+                                done
+                                apt-get update
+                                apt-get install -y curl
+                            fi
                             if [ ! -f "/usr/local/bin/kubectl" ]; then
                                 echo "kubectl not found in /usr/local/bin. Downloading..."
                                 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -194,6 +226,14 @@ pipeline {
                 }
                 sh '''
                     for i in {1..6}; do
+                        if ! command -v curl >/dev/null 2>&1; then
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                echo "Waiting for other apt-get processes to finish..."
+                                sleep 5
+                            done
+                            apt-get update
+                            apt-get install -y curl
+                        fi
                         if [ ! -f "/usr/local/bin/kubectl" ]; then
                             echo "kubectl not found in /usr/local/bin. Downloading..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -228,6 +268,14 @@ pipeline {
             }
             steps {
                 sh '''
+                    if ! command -v curl >/dev/null 2>&1; then
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                            echo "Waiting for other apt-get processes to finish..."
+                            sleep 5
+                        done
+                        apt-get update
+                        apt-get install -y curl
+                    fi
                     if [ ! -f "/usr/local/bin/kubectl" ]; then
                         echo "kubectl not found in /usr/local/bin. Downloading..."
                         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -244,6 +292,14 @@ pipeline {
                     /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
+                        if ! command -v curl >/dev/null 2>&1; then
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                echo "Waiting for other apt-get processes to finish..."
+                                sleep 5
+                            done
+                            apt-get update
+                            apt-get install -y curl
+                        fi
                         if [ ! -f "/usr/local/bin/kubectl" ]; then
                             echo "kubectl not found in /usr/local/bin. Downloading..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -278,6 +334,14 @@ pipeline {
             }
             steps {
                 sh '''
+                    if ! command -v curl >/dev/null 2>&1; then
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                            echo "Waiting for other apt-get processes to finish..."
+                            sleep 5
+                        done
+                        apt-get update
+                        apt-get install -y curl
+                    fi
                     if [ ! -f "/usr/local/bin/kubectl" ]; then
                         echo "kubectl not found in /usr/local/bin. Downloading..."
                         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -291,6 +355,14 @@ pipeline {
                     /usr/local/bin/kubectl rollout status deployment/prometheus-deployment -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
+                        if ! command -v curl >/dev/null 2>&1; then
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                                echo "Waiting for other apt-get processes to finish..."
+                                sleep 5
+                            done
+                            apt-get update
+                            apt-get install -y curl
+                        fi
                         if [ ! -f "/usr/local/bin/kubectl" ]; then
                             echo "kubectl not found in /usr/local/bin. Downloading..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -336,6 +408,14 @@ pipeline {
     post {
         failure {
             sh '''
+                if ! command -v curl >/dev/null 2>&1; then
+                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                        echo "Waiting for other apt-get processes to finish..."
+                        sleep 5
+                    done
+                    apt-get update
+                    apt-get install -y curl
+                fi
                 if [ ! -f "/usr/local/bin/kubectl" ]; then
                     echo "kubectl not found in /usr/local/bin. Downloading..."
                     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
