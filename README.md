@@ -131,14 +131,14 @@ DevSecOps18_FProject/
    ```
 
 
- ## Local Option 1 - Docker Compose
+ ## Option 1 - Docker Compose
  **Using Docker Compose with buildx option to run locally**
    ```bash
    cd Docker/
    docker-compose up -d --build
    ``` 
       
- ## Local Option 2 - Kubernetes (with kubeadm)
+ ## Option 2 - Kubernetes (with kubeadm)
 
 **Deploy to Kubernetes using kubeadm:**
 
@@ -210,11 +210,6 @@ This order ensures all dependencies are available before pods start. Adjust file
    - Grafana: Open your browser and go to [http://localhost:30300](http://localhost:30300)
    - Prometheus: Open your browser and go to [http://localhost:30090](http://localhost:30090)
       
-## Cloud Option 1
-**Deploy to AWS using Terraform:**
-   ```bash
-   **Need to add Terraform**
-   ```
 ---
 
 ## 🔧 Configuration

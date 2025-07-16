@@ -11,7 +11,6 @@ pipeline {
         FRONTEND_IMAGE = "yaveenp/investment-frontend:${BUILD_NUMBER}"
         KUBE_NAMESPACE = "financial-portfolio"
         DOCKER_REPO = "yaveenp"
-        KUBECTL_BIN = '/usr/local/bin/kubectl'
     }
 
     stages {
@@ -20,18 +19,14 @@ pipeline {
                 script {
                     sh '''
                         echo "=== Setting up build environment ==="
-
-                        # Verify kubectl existence in /usr/local/bin
                         if [ ! -f "/usr/local/bin/kubectl" ]; then
                             echo "kubectl not found in /usr/local/bin. Downloading..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                             chmod +x kubectl
-                            mv kubectl /usr/local/bin/kubectl
+                            sudo mv kubectl /usr/local/bin/kubectl
                         else
                             echo "kubectl already exists in /usr/local/bin."
                         fi
-
-                        # Verify kubectl installation
                         /usr/local/bin/kubectl version --client || {
                             echo "Failed to verify kubectl installation."
                             exit 1
@@ -47,6 +42,8 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
+                                apt-get update
+                                apt-get install -y python3-venv
                                 python3 -m venv venv
                                 . venv/bin/activate
                                 pip install --upgrade pip flake8
@@ -150,9 +147,15 @@ pipeline {
                 timeout(time: 10, unit: 'MINUTES')
             }
             steps {
-                echo "=== Ensure namespace exists ==="
                 sh '''
-                    ${KUBECTL_BIN} get ns ${KUBE_NAMESPACE} || ${KUBECTL_BIN} create ns ${KUBE_NAMESPACE}
+                    if [ ! -f "/usr/local/bin/kubectl" ]; then
+                        echo "kubectl not found in /usr/local/bin. Downloading..."
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl
+                        mv kubectl /usr/local/bin/kubectl
+                    fi
+
+                    /usr/local/bin/kubectl get ns ${KUBE_NAMESPACE} || /usr/local/bin/kubectl create ns ${KUBE_NAMESPACE}
                 '''
                 echo "=== Applying core Kubernetes resources ==="
                 script {
@@ -172,9 +175,15 @@ pipeline {
                     ]
                     for (res in coreResources) {
                         sh """
+                            if [ ! -f "/usr/local/bin/kubectl" ]; then
+                                echo "kubectl not found in /usr/local/bin. Downloading..."
+                                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                                chmod +x kubectl
+                                mv kubectl /usr/local/bin/kubectl
+                            fi
                             if [ -f \"${res}\" ]; then
                                 echo 'Applying: ${res}'
-                                ${KUBECTL_BIN} apply -f "${res}" -n ${KUBE_NAMESPACE}
+                                /usr/local/bin/kubectl apply -f "${res}" -n ${KUBE_NAMESPACE}
                             else
                                 echo 'WARNING: Missing resource file: ${res}'
                             fi
@@ -183,17 +192,23 @@ pipeline {
                 }
                 sh '''
                     for i in {1..6}; do
-                        NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        if [ ! -f "/usr/local/bin/kubectl" ]; then
+                            echo "kubectl not found in /usr/local/bin. Downloading..."
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            mv kubectl /usr/local/bin/kubectl
+                        fi
+                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
                         if [ "$NOT_READY" -eq 0 ]; then
                             echo "All pods are running and ready."
                             exit 0
                         fi
                         echo "Waiting for pods to be ready... ($i/6)"
-                        ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                        /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                         sleep 20
                     done
                     echo "Some pods are not ready."
-                    ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                     exit 1
                 '''
             }
@@ -211,26 +226,39 @@ pipeline {
             }
             steps {
                 sh '''
-                    ${KUBECTL_BIN} set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} set image deployment/frontend-deployment frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} rollout status deployment/frontend-deployment -n ${KUBE_NAMESPACE}
+                    if [ ! -f "/usr/local/bin/kubectl" ]; then
+                        echo "kubectl not found in /usr/local/bin. Downloading..."
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl
+                        mv kubectl /usr/local/bin/kubectl
+                    fi
 
-                    ${KUBECTL_BIN} apply -f ${WORKSPACE}/kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/frontend-deployment frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/frontend-deployment -n ${KUBE_NAMESPACE}
+
+                    /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
-                        NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        if [ ! -f "/usr/local/bin/kubectl" ]; then
+                            echo "kubectl not found in /usr/local/bin. Downloading..."
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            mv kubectl /usr/local/bin/kubectl
+                        fi
+                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
                         if [ "$NOT_READY" -eq 0 ]; then
                             echo "All pods are running and ready."
                             exit 0
                         fi
                         echo "Waiting for pods to be ready... ($i/6)"
-                        ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                        /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                         sleep 20
                     done
                     echo "Some pods are not ready."
-                    ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                     exit 1
                 '''
             }
@@ -248,23 +276,36 @@ pipeline {
             }
             steps {
                 sh '''
-                    ${KUBECTL_BIN} set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} rollout status deployment/grafana-deployment -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} set image deployment/prometheus-deployment prometheus=yaveenp/prometheus:latest -n ${KUBE_NAMESPACE}
-                    ${KUBECTL_BIN} rollout status deployment/prometheus-deployment -n ${KUBE_NAMESPACE}
+                    if [ ! -f "/usr/local/bin/kubectl" ]; then
+                        echo "kubectl not found in /usr/local/bin. Downloading..."
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl
+                        mv kubectl /usr/local/bin/kubectl
+                    fi
+
+                    /usr/local/bin/kubectl set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/grafana-deployment -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/prometheus-deployment prometheus=yaveenp/prometheus:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/prometheus-deployment -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
-                        NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        if [ ! -f "/usr/local/bin/kubectl" ]; then
+                            echo "kubectl not found in /usr/local/bin. Downloading..."
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            mv kubectl /usr/local/bin/kubectl
+                        fi
+                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
                         if [ "$NOT_READY" -eq 0 ]; then
                             echo "All monitoring pods are running and ready."
                             exit 0
                         fi
                         echo "Waiting for monitoring pods... ($i/6)"
-                        ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                        /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                         sleep 20
                     done
                     echo "Monitoring pods not ready."
-                    ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                     exit 1
                 '''
             }
@@ -292,11 +333,18 @@ pipeline {
 
     post {
         failure {
-            echo "Pipeline failed: Rolling back deployments..."
-            sh "${KUBECTL_BIN} rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true"
+            sh '''
+                if [ ! -f "/usr/local/bin/kubectl" ]; then
+                    echo "kubectl not found in /usr/local/bin. Downloading..."
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/kubectl
+                fi
+                /usr/local/bin/kubectl rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true
+                /usr/local/bin/kubectl rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true
+                /usr/local/bin/kubectl rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true
+                /usr/local/bin/kubectl rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true
+            '''
         }
         always {
             echo "Cleaning up local Docker images..."
