@@ -359,10 +359,10 @@ pipeline {
                         mv kubectl /usr/local/bin/kubectl
                     fi
 
-                    /usr/local/bin/kubectl set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
-                    /usr/local/bin/kubectl rollout status deployment/grafana-deployment -n ${KUBE_NAMESPACE}
-                    /usr/local/bin/kubectl set image deployment/prometheus-deployment prometheus=yaveenp/prometheus:latest -n ${KUBE_NAMESPACE}
-                    /usr/local/bin/kubectl rollout status deployment/prometheus-deployment -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/grafana grafana/grafana:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/grafana -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/prometheus prom/prometheus:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl rollout status deployment/prometheus -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
                         if ! command -v curl >/dev/null 2>&1; then
