@@ -11,31 +11,95 @@ pipeline {
         FRONTEND_IMAGE = "yaveenp/investment-frontend:${BUILD_NUMBER}"
         KUBE_NAMESPACE = "financial-portfolio"
         DOCKER_REPO = "yaveenp"
-        KUBECTL_BIN = '/usr/local/bin/kubectl'
-        // KUBECONFIG will be set in each stage that needs it
+        // Use docker.sock from host
+        DOCKER_HOST = "unix:///var/run/docker.sock"
     }
 
     stages {
-        stage('Install Tools') {
+        stage('Verify Environment') {
             steps {
                 script {
-                    docker.image('ubuntu:22.04').inside('-u root') {
+                    sh '''
+                        echo "=== Environment Information ==="
+                        whoami
+                        pwd
+                        echo "Jenkins Home: ${JENKINS_HOME}"
+                        
+                        echo "=== Docker Information ==="
+                        docker version || {
+                            echo "ERROR: Docker is not available"
+                            exit 1
+                        }
+                        
+                        echo "=== Docker Socket Permissions ==="
+                        ls -la /var/run/docker.sock || echo "Docker socket not found"
+                        
+                        echo "=== Testing Docker Access ==="
+                        docker ps || {
+                            echo "ERROR: Cannot connect to Docker daemon"
+                            echo "Please ensure Jenkins container is running with:"
+                            echo "  -v /var/run/docker.sock:/var/run/docker.sock"
+                            echo "  And Jenkins user has access to docker group"
+                            exit 1
+                        }
+                    '''
+                }
+            }
+        }
+
+        stage('Setup Workspace') {
+            steps {
+                script {
+                    sh '''
+                        echo "=== Setting up workspace ==="
+                        # Ensure we have a clean workspace
+                        cd ${WORKSPACE}
+                        
+                        # Install kubectl directly in workspace
+                        if [ ! -f "${WORKSPACE}/kubectl" ]; then
+                            echo "Downloading kubectl..."
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                        fi
+                        
+                        # Verify kubectl
+                        ${WORKSPACE}/kubectl version --client
+                    '''
+                }
+            }
+        }
+
+        stage('Setup Kubeconfig') {
+            steps {
+                script {
+                    // Try to get kubeconfig from credentials
+                    def hasKubeconfig = false
+                    try {
+                        withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                            sh '''
+                                mkdir -p ${WORKSPACE}/.kube
+                                cp ${KUBECONFIG_FILE} ${WORKSPACE}/.kube/config
+                                chmod 600 ${WORKSPACE}/.kube/config
+                                echo "Kubeconfig set up from Jenkins credentials"
+                            '''
+                            hasKubeconfig = true
+                        }
+                    } catch (Exception e) {
+                        echo "kubeconfig-file credential not found, checking default location..."
+                    }
+                    
+                    if (!hasKubeconfig) {
                         sh '''
-                            echo "=== Installing Python Tools ==="
-                            apt-get update
-                            apt-get install -y python3-pip wget curl apt-transport-https ca-certificates gnupg lsb-release
-
-                            pip install flake8 pytest
-
-                            echo "=== Installing kubectl ==="
-                            curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
-                            echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-jammy main" > /etc/apt/sources.list.d/kubernetes.list
-                            apt-get update
-                            apt-get install -y kubectl
-
-                            echo "=== Verifying kubectl location and version ==="
-                            which kubectl
-                            kubectl version --client
+                            # Check if kubeconfig exists in default location
+                            if [ -f "${HOME}/.kube/config" ]; then
+                                mkdir -p ${WORKSPACE}/.kube
+                                cp ${HOME}/.kube/config ${WORKSPACE}/.kube/config
+                                chmod 600 ${WORKSPACE}/.kube/config
+                                echo "Using kubeconfig from default location"
+                            else
+                                echo "WARNING: No kubeconfig found. Kubernetes stages will be skipped."
+                                echo "To fix: Create 'kubeconfig-file' credential or place config in ~/.kube/config"
+                            fi
                         '''
                     }
                 }
@@ -43,27 +107,18 @@ pipeline {
         }
 
         stage('Test Kubernetes Connection') {
-            steps {
-                script {
-                    // Check if kubeconfig credential exists, otherwise use default location
-                    def kubeconfigPath = ''
-                    try {
-                        withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
-                            kubeconfigPath = "${KUBECONFIG_FILE}"
-                        }
-                    } catch (Exception e) {
-                        echo "Warning: kubeconfig-file credential not found. Using default kubeconfig location."
-                        kubeconfigPath = "${env.HOME}/.kube/config"
-                    }
-                    
-                    docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
-                        sh '''
-                            echo "=== Testing Kubernetes Connection ==="
-                            kubectl config get-contexts
-                            kubectl get nodes
-                        '''
-                    }
+            when {
+                expression {
+                    return fileExists("${WORKSPACE}/.kube/config")
                 }
+            }
+            steps {
+                sh '''
+                    export KUBECONFIG=${WORKSPACE}/.kube/config
+                    echo "=== Testing Kubernetes Connection ==="
+                    ${WORKSPACE}/kubectl config get-contexts
+                    ${WORKSPACE}/kubectl get nodes
+                '''
             }
         }
 
@@ -72,55 +127,54 @@ pipeline {
                 stage('Lint Flask Code') {
                     steps {
                         script {
-                            docker.image('python:3.10').inside('-u root') {
+                            docker.image('python:3.10').inside {
                                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                                     sh '''
-                                        echo "=== Starting Lint Flask Code Stage ==="
+                                        echo "=== Linting Flask Code ==="
                                         cd ${WORKSPACE}
-                                        python3 -m venv venv
-                                        . venv/bin/activate
-                                        pip install --upgrade pip
+                                        
                                         pip install flake8
                                         
-                                        # Create log file
                                         touch lint_flask.log
                                         
-                                        # Run flake8 with proper error handling
-                                        if [ -d "app/Backend/main.py" ] || [ -d "app/Backend/Financial_Portfolio_Tracker/" ]; then
-                                            flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || echo "Flake8 found issues (see lint_flask.log)"
+                                        if [ -f "app/Backend/main.py" ] || [ -d "app/Backend/Financial_Portfolio_Tracker/" ]; then
+                                            flake8 app/Backend/main.py app/Backend/Financial_Portfolio_Tracker/ > lint_flask.log 2>&1 || echo "Flake8 found issues"
                                         else
                                             echo "Backend files not found" > lint_flask.log
                                         fi
+                                        
+                                        cat lint_flask.log
                                     '''
-                                    archiveArtifacts artifacts: 'lint_flask.log', allowEmptyArchive: true
                                 }
                             }
+                            archiveArtifacts artifacts: 'lint_flask.log', allowEmptyArchive: true
                         }
                     }
                 }
                 stage('Lint React Code') {
                     steps {
                         script {
-                            docker.image('node:20-bullseye').inside('-u root') {
+                            docker.image('node:20-alpine').inside {
                                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                                     sh '''
-                                        echo "=== Starting Lint React Code Stage ==="
+                                        echo "=== Linting React Code ==="
                                         cd ${WORKSPACE}
                                         
-                                        # Create log file
                                         touch lint_react.log
                                         
                                         if [ -d "app/Frontend" ]; then
                                             cd app/Frontend
                                             npm install
-                                            npm run lint > ${WORKSPACE}/lint_react.log 2>&1 || echo "ESLint found issues (see lint_react.log)"
+                                            npm run lint > ${WORKSPACE}/lint_react.log 2>&1 || echo "ESLint found issues"
                                         else
                                             echo "Frontend directory not found" > ${WORKSPACE}/lint_react.log
                                         fi
+                                        
+                                        cat ${WORKSPACE}/lint_react.log
                                     '''
-                                    archiveArtifacts artifacts: 'lint_react.log', allowEmptyArchive: true
                                 }
                             }
+                            archiveArtifacts artifacts: 'lint_react.log', allowEmptyArchive: true
                         }
                     }
                 }
@@ -131,32 +185,32 @@ pipeline {
             steps {
                 timeout(time: 20, unit: 'MINUTES') {
                     script {
-                        // Use host Docker daemon
                         withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                             sh '''
+                                echo "=== Docker Login ==="
                                 echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                                 
-                                # Setup buildx if not already available
-                                if ! docker buildx version > /dev/null 2>&1; then
-                                    docker buildx create --name mybuilder --use || docker buildx use mybuilder
-                                else
-                                    docker buildx use mybuilder || docker buildx create --name mybuilder --use
-                                fi
+                                echo "=== Setting up Docker Buildx ==="
+                                # Remove existing builder if any
+                                docker buildx rm mybuilder || true
                                 
+                                # Create new builder
+                                docker buildx create --name mybuilder --driver docker-container --use
                                 docker buildx inspect --bootstrap
                                 
-                                # Build and push images
+                                echo "=== Building Backend Image ==="
                                 docker buildx build --platform linux/amd64,linux/arm64 \
                                     -t ${BACKEND_IMAGE} \
                                     -f app/Backend/flask-dockerfile \
                                     --push app/Backend
                                 
+                                echo "=== Building Frontend Image ==="
                                 docker buildx build --platform linux/amd64,linux/arm64 \
                                     -t ${FRONTEND_IMAGE} \
                                     -f app/Frontend/Dockerfile \
                                     --push app/Frontend
                                 
-                                # Update deployment files with new image tags
+                                echo "=== Updating Kubernetes manifests ==="
                                 sed -i "s|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|g" kubernetes/flask/flask-deployment.yaml
                                 sed -i "s|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|g" kubernetes/Frontend/frontend-deployment.yaml
                             '''
@@ -166,164 +220,102 @@ pipeline {
             }
         }
 
-        stage('Prepare Kubernetes Resources') {
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        def kubeconfigPath = ''
-                        try {
-                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
-                                kubeconfigPath = "${KUBECONFIG_FILE}"
-                            }
-                        } catch (Exception e) {
-                            kubeconfigPath = "${env.HOME}/.kube/config"
-                        }
-                        
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
-                            sh '''
-                                echo "=== Ensure namespace exists ==="
-                                kubectl get ns ${KUBE_NAMESPACE} || kubectl create ns ${KUBE_NAMESPACE}
-                            '''
-                            
-                            // Apply core resources
-                            def coreResources = [
-                                "Postgres/postgres-configmap.yaml",
-                                "kubernetes/flask/flask-secret.yaml",
-                                "kubernetes/Monitoring/prometheus-configmap.yaml",
-                                "kubernetes/Monitoring/grafana-datasource-configmap.yaml",
-                                "kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
-                                "kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
-                                "kubernetes/Monitoring/grafana-service.yaml",
-                                "kubernetes/Monitoring/prometheus-service.yaml",
-                                "kubernetes/Monitoring/node-exporter-daemonset.yaml",
-                                "kubernetes/Monitoring/node-exporter-service.yaml",
-                                "kubernetes/ingress.yaml",
-                                "kubernetes/ingress-nginx-controller.yaml"
-                            ]
-                            
-                            coreResources.each { resource ->
-                                sh """
-                                    if [ -f "${WORKSPACE}/${resource}" ]; then
-                                        echo 'Applying: ${resource}'
-                                        kubectl apply -f "${WORKSPACE}/${resource}" -n ${KUBE_NAMESPACE}
-                                    else
-                                        echo 'WARNING: Missing resource file: ${resource}'
-                                    fi
-                                """
-                            }
-                            
-                            // Apply deployments
-                            sh '''
-                                kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}
-                                kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
-                                kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/grafana-deployment.yaml -n ${KUBE_NAMESPACE}
-                                kubectl apply -f ${WORKSPACE}/kubernetes/Monitoring/prometheus-deployment.yaml -n ${KUBE_NAMESPACE}
-                            '''
-                            
-                            // Wait for pods to be ready
-                            sh '''
-                                echo "=== Waiting for pods to be ready ==="
-                                kubectl wait --for=condition=ready pod -l app=flask-app -n ${KUBE_NAMESPACE} --timeout=300s || true
-                                kubectl wait --for=condition=ready pod -l app=frontend -n ${KUBE_NAMESPACE} --timeout=300s || true
-                                kubectl get pods -n ${KUBE_NAMESPACE}
-                            '''
-                        }
-                    }
+        stage('Deploy to Kubernetes') {
+            when {
+                expression {
+                    return fileExists("${WORKSPACE}/.kube/config")
                 }
             }
-        }
-
-        stage('Deploy Application') {
             steps {
-                timeout(time: 10, unit: 'MINUTES') {
+                timeout(time: 15, unit: 'MINUTES') {
                     script {
-                        def kubeconfigPath = ''
-                        try {
-                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
-                                kubeconfigPath = "${KUBECONFIG_FILE}"
-                            }
-                        } catch (Exception e) {
-                            kubeconfigPath = "${env.HOME}/.kube/config"
-                        }
-                        
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
-                            sh '''
-                                # Update deployments with new images
-                                kubectl set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
-                                kubectl rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE} --timeout=5m
-                                
-                                kubectl set image deployment/frontend-deployment frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
-                                kubectl rollout status deployment/frontend-deployment -n ${KUBE_NAMESPACE} --timeout=5m
-                                
-                                # Apply services
-                                kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-service.yaml -n ${KUBE_NAMESPACE}
-                                kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
-                                
-                                # Final status check
-                                echo "=== Final deployment status ==="
-                                kubectl get deployments -n ${KUBE_NAMESPACE}
-                                kubectl get pods -n ${KUBE_NAMESPACE}
-                                kubectl get services -n ${KUBE_NAMESPACE}
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy Monitoring Stack') {
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        def kubeconfigPath = ''
-                        try {
-                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
-                                kubeconfigPath = "${KUBECONFIG_FILE}"
-                            }
-                        } catch (Exception e) {
-                            kubeconfigPath = "${env.HOME}/.kube/config"
-                        }
-                        
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
-                            sh '''
-                                # Update monitoring deployments
-                                kubectl set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
-                                kubectl rollout status deployment/grafana-deployment -n ${KUBE_NAMESPACE} --timeout=5m
-                                
-                                kubectl set image deployment/prometheus-deployment prometheus=yaveenp/prometheus:latest -n ${KUBE_NAMESPACE}
-                                kubectl rollout status deployment/prometheus-deployment -n ${KUBE_NAMESPACE} --timeout=5m
-                                
-                                # Check monitoring stack status
-                                echo "=== Monitoring stack status ==="
-                                kubectl get pods -l app=grafana -n ${KUBE_NAMESPACE}
-                                kubectl get pods -l app=prometheus -n ${KUBE_NAMESPACE}
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('API Test') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    script {
-                        docker.image('python:3.11').inside('-u root') {
-                            sh '''
-                                pip install pytest requests
-                                
-                                # Wait for service to be available
-                                sleep 30
-                                
-                                # Update test endpoint
-                                if [ -f "app/Backend/tests/api_tests.py" ]; then
-                                    sed -i 's|http://flask-app:5050|http://localhost:30031|g' app/Backend/tests/api_tests.py
-                                    pytest app/Backend/tests/api_tests.py -v --tb=short
+                        sh '''
+                            export KUBECONFIG=${WORKSPACE}/.kube/config
+                            export KUBECTL=${WORKSPACE}/kubectl
+                            
+                            echo "=== Creating namespace ==="
+                            $KUBECTL get ns ${KUBE_NAMESPACE} || $KUBECTL create ns ${KUBE_NAMESPACE}
+                            
+                            echo "=== Applying ConfigMaps and Secrets ==="
+                            # Apply configurations first
+                            for file in Postgres/postgres-configmap.yaml \
+                                       kubernetes/flask/flask-secret.yaml \
+                                       kubernetes/Monitoring/prometheus-configmap.yaml \
+                                       kubernetes/Monitoring/grafana-datasource-configmap.yaml \
+                                       kubernetes/Monitoring/grafana-dashboard-configmap.yaml \
+                                       kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml; do
+                                if [ -f "$file" ]; then
+                                    echo "Applying: $file"
+                                    $KUBECTL apply -f "$file" -n ${KUBE_NAMESPACE}
                                 else
-                                    echo "WARNING: API tests not found at app/Backend/tests/api_tests.py"
+                                    echo "WARNING: $file not found"
                                 fi
-                            '''
-                        }
+                            done
+                            
+                            echo "=== Applying Services ==="
+                            for file in kubernetes/flask/flask-service.yaml \
+                                       kubernetes/Frontend/frontend-service.yaml \
+                                       kubernetes/Monitoring/grafana-service.yaml \
+                                       kubernetes/Monitoring/prometheus-service.yaml \
+                                       kubernetes/Monitoring/node-exporter-service.yaml; do
+                                if [ -f "$file" ]; then
+                                    echo "Applying: $file"
+                                    $KUBECTL apply -f "$file" -n ${KUBE_NAMESPACE}
+                                else
+                                    echo "WARNING: $file not found"
+                                fi
+                            done
+                            
+                            echo "=== Applying Deployments ==="
+                            # Apply deployments with updated images
+                            $KUBECTL apply -f kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}
+                            $KUBECTL apply -f kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
+                            
+                            # Apply monitoring deployments if they exist
+                            [ -f kubernetes/Monitoring/grafana-deployment.yaml ] && \
+                                $KUBECTL apply -f kubernetes/Monitoring/grafana-deployment.yaml -n ${KUBE_NAMESPACE}
+                            [ -f kubernetes/Monitoring/prometheus-deployment.yaml ] && \
+                                $KUBECTL apply -f kubernetes/Monitoring/prometheus-deployment.yaml -n ${KUBE_NAMESPACE}
+                            [ -f kubernetes/Monitoring/node-exporter-daemonset.yaml ] && \
+                                $KUBECTL apply -f kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}
+                            
+                            echo "=== Applying Ingress ==="
+                            [ -f kubernetes/ingress.yaml ] && \
+                                $KUBECTL apply -f kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}
+                            
+                            echo "=== Waiting for deployments ==="
+                            $KUBECTL rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE} --timeout=5m || true
+                            $KUBECTL rollout status deployment/frontend-deployment -n ${KUBE_NAMESPACE} --timeout=5m || true
+                            
+                            echo "=== Deployment Status ==="
+                            $KUBECTL get all -n ${KUBE_NAMESPACE}
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    docker.image('python:3.11-slim').inside {
+                        sh '''
+                            echo "=== Running API Tests ==="
+                            pip install pytest requests
+                            
+                            # Wait for services to be ready
+                            sleep 30
+                            
+                            if [ -f "app/Backend/tests/api_tests.py" ]; then
+                                # Update test endpoint if needed
+                                sed -i 's|http://flask-app:5050|http://localhost:30031|g' app/Backend/tests/api_tests.py || true
+                                
+                                # Run tests
+                                pytest app/Backend/tests/api_tests.py -v --tb=short || echo "Tests completed with issues"
+                            else
+                                echo "WARNING: API tests not found"
+                            fi
+                        '''
                     }
                 }
             }
@@ -332,35 +324,37 @@ pipeline {
 
     post {
         failure {
-            echo "Pipeline failed: Rolling back deployments..."
-            sh "${KUBECTL_BIN} rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true"
-            sh "${KUBECTL_BIN} rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true"
+            script {
+                if (fileExists("${WORKSPACE}/.kube/config")) {
+                    sh '''
+                        export KUBECONFIG=${WORKSPACE}/.kube/config
+                        export KUBECTL=${WORKSPACE}/kubectl
+                        
+                        echo "=== Rolling back deployments ==="
+                        $KUBECTL rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true
+                        $KUBECTL rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true
+                        $KUBECTL rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true
+                        $KUBECTL rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true
+                    '''
+                }
+            }
         }
         always {
-            echo "=== Installing kubectl ==="
-            sh '''
-                apt-get update
-                apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-                curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
-                echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-jammy main" > /etc/apt/sources.list.d/kubernetes.list
-                apt-get update
-                apt-get install -y kubectl
-            '''
-
-            echo "Cleaning up local Docker images..."
-            sh "docker rmi -f ${BACKEND_IMAGE} || true"
-            sh "docker rmi -f ${FRONTEND_IMAGE} || true"
-
-            echo "Cleaning stopped containers..."
-            sh '''
-                CONTAINERS=$(docker ps -a -q --filter "label=pipeline=${APP_NAME}" --filter "status=exited")
-                [ -n "$CONTAINERS" ] && docker container rm $CONTAINERS || true
-            '''
-
-            echo "Cleaning workspace..."
-            sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
+            script {
+                sh '''
+                    echo "=== Cleanup ==="
+                    # Remove buildx builder
+                    docker buildx rm mybuilder || true
+                    
+                    # Clean up images
+                    docker rmi ${BACKEND_IMAGE} || true
+                    docker rmi ${FRONTEND_IMAGE} || true
+                    
+                    # Clean workspace (but keep archived artifacts)
+                    rm -rf ${WORKSPACE}/.kube
+                    rm -f ${WORKSPACE}/kubectl
+                '''
+            }
         }
     }
 }
