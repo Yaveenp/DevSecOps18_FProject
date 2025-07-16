@@ -332,25 +332,37 @@ pipeline {
 
     post {
         failure {
-            script {
-                def kubeconfigPath = ''
-                try {
-                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
-                        kubeconfigPath = "${KUBECONFIG_FILE}"
-                    }
-                } catch (Exception e) {
-                    kubeconfigPath = "${env.HOME}/.kube/config"
-                }
-                
-                docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
-                    sh '''
-                        echo "Pipeline failed: Rolling back deployments..."
-                        kubectl rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true
-                        kubectl rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true
-                        kubectl rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true
-                        kubectl rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true
-                    '''
-                }
+            echo "Pipeline failed: Rolling back deployments..."
+            sh "${KUBECTL_BIN} rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true"
+            sh "${KUBECTL_BIN} rollout undo deployment/frontend-deployment -n ${KUBE_NAMESPACE} || true"
+            sh "${KUBECTL_BIN} rollout undo deployment/grafana-deployment -n ${KUBE_NAMESPACE} || true"
+            sh "${KUBECTL_BIN} rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true"
+        }
+        always {
+            echo "=== Installing kubectl ==="
+            sh '''
+                apt-get update
+                apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+                curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+                echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+                apt-get update
+                apt-get install -y kubectl
+            '''
+
+            echo "Cleaning up local Docker images..."
+            sh "docker rmi -f ${BACKEND_IMAGE} || true"
+            sh "docker rmi -f ${FRONTEND_IMAGE} || true"
+
+            echo "Cleaning stopped containers..."
+            sh '''
+                CONTAINERS=$(docker ps -a -q --filter "label=pipeline=${APP_NAME}" --filter "status=exited")
+                [ -n "$CONTAINERS" ] && docker container rm $CONTAINERS || true
+            '''
+
+            echo "Cleaning workspace..."
+            sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
+        }
+    }
             }
         }
         always {
