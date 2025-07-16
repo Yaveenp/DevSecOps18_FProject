@@ -26,7 +26,7 @@ pipeline {
                             echo "kubectl not found in /usr/local/bin. Downloading..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                             chmod +x kubectl
-                            mv kubectl /usr/local/bin/kubectl
+                            sudo mv kubectl /usr/local/bin/kubectl
                         else
                             echo "kubectl already exists in /usr/local/bin."
                         fi
@@ -47,7 +47,9 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
-                                . ${WORKSPACE}/venv/bin/activate
+                                python3 -m venv venv
+                                . venv/bin/activate
+                                pip install --upgrade pip flake8
                                 touch lint_flask.log
                                 if [ -f "app/Backend/main.py" ] || [ -d "app/Backend/Financial_Portfolio_Tracker/" ]; then
                                     flake8 app/Backend/ > lint_flask.log 2>&1 || echo "Flake8 found issues"
@@ -107,7 +109,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker:24.0.0-dind'
-                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock --label pipeline=${APP_NAME}'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             options {
