@@ -293,7 +293,7 @@ pipeline {
                     /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
 
-                    /usr/local/bin/kubectl set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/flask-app flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl set image deployment/frontend-deployment frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl rollout status deployment/frontend-deployment -n ${KUBE_NAMESPACE}
