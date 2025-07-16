@@ -75,14 +75,6 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
-                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                    echo "Waiting for other apt-get processes to finish..."
-                                    sleep 5
-                                done
-                                if ! command -v node &> /dev/null; then
-                                    apt-get update
-                                    apt-get install -y nodejs
-                                fi
                                 if ! command -v npm &> /dev/null; then
                                     echo "Installing npm..."
                                     apt-get install -y npm || {
