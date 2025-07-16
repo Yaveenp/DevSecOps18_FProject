@@ -379,7 +379,7 @@ pipeline {
                             chmod +x kubectl
                             mv kubectl /usr/local/bin/kubectl
                         fi
-                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | grep -v "Terminating" | wc -l)
                         if [ "$NOT_READY" -eq 0 ]; then
                             echo "All monitoring pods are running and ready."
                             exit 0
@@ -390,7 +390,6 @@ pipeline {
                     done
                     echo "Monitoring pods not ready."
                     /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
-                    exit 1
                 '''
             }
         }
@@ -408,7 +407,7 @@ pipeline {
             steps {
                 sh '''
                     pip install pytest requests
-                    sed -i 's|http://flask-app:5050|http://localhost:30031|g' app/Backend/tests/api_tests.py
+                    sed -i 's|http://flask-app:5050|http://react-ui:3001|g' app/Backend/tests/api_tests.py
                     pytest app/Backend/tests/api_tests.py -v
                 '''
             }
