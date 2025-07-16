@@ -363,25 +363,4 @@ pipeline {
             sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
         }
     }
-            }
-        }
-        always {
-            // Use deleteDir() instead of cleanWs() since the plugin may not be installed
-            deleteDir()
-            
-            script {
-                sh '''
-                    echo "Cleaning up Docker resources..."
-                    docker rmi -f ${BACKEND_IMAGE} || true
-                    docker rmi -f ${FRONTEND_IMAGE} || true
-                    
-                    # Clean up any stopped containers from this build
-                    docker container prune -f --filter "label=jenkins.job=${JOB_NAME}" || true
-                    
-                    # Clean up buildx builder if needed
-                    docker buildx rm mybuilder || true
-                '''
-            }
-        }
-    }
 }
