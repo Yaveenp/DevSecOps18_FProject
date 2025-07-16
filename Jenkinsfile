@@ -124,14 +124,16 @@ pipeline {
                         docker buildx inspect --bootstrap
                     '''
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        '''
                     }
-                    sh """
+                    sh '''
                         docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push app/Backend
                         docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend
                         sed -i 's|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml
                         sed -i 's|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml
-                    """
+                    '''
                 }
             }
         }
@@ -174,20 +176,20 @@ pipeline {
                         "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
                     ]
                     for (res in coreResources) {
-                        sh """
+                        sh '''
                             if [ ! -f "/usr/local/bin/kubectl" ]; then
                                 echo "kubectl not found in /usr/local/bin. Downloading..."
                                 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                                 chmod +x kubectl
                                 mv kubectl /usr/local/bin/kubectl
                             fi
-                            if [ -f \"${res}\" ]; then
+                            if [ -f "${res}" ]; then
                                 echo 'Applying: ${res}'
                                 /usr/local/bin/kubectl apply -f "${res}" -n ${KUBE_NAMESPACE}
                             else
                                 echo 'WARNING: Missing resource file: ${res}'
                             fi
-                        """
+                        '''
                     }
                 }
                 sh '''
@@ -348,8 +350,10 @@ pipeline {
         }
         always {
             echo "Cleaning up local Docker images..."
-            sh "docker rmi -f ${BACKEND_IMAGE} || true"
-            sh "docker rmi -f ${FRONTEND_IMAGE} || true"
+            sh '''
+                docker rmi -f ${BACKEND_IMAGE} || true
+                docker rmi -f ${FRONTEND_IMAGE} || true
+            '''
 
             echo "Cleaning stopped containers..."
             sh '''
@@ -358,7 +362,9 @@ pipeline {
             '''
 
             echo "Cleaning workspace..."
-            sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
+            sh '''
+                find $WORKSPACE -type f ! -name "lint_*.log" -delete
+            '''
         }
     }
 }
