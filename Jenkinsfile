@@ -268,11 +268,12 @@ pipeline {
             }
             steps {
                 sh '''
+                    # Wait for apt lock and install curl if missing
+                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                        echo "Waiting for other apt-get processes to finish..."
+                        sleep 5
+                    done
                     if ! command -v curl >/dev/null 2>&1; then
-                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                            echo "Waiting for other apt-get processes to finish..."
-                            sleep 5
-                        done
                         apt-get update
                         apt-get install -y curl
                     fi
@@ -283,6 +284,10 @@ pipeline {
                         mv kubectl /usr/local/bin/kubectl
                     fi
 
+                    # Apply deployments BEFORE setting images
+                    /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
+
                     /usr/local/bin/kubectl set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl rollout status deployment/flask-deployment -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl set image deployment/frontend-deployment frontend=${FRONTEND_IMAGE} -n ${KUBE_NAMESPACE}
@@ -292,11 +297,11 @@ pipeline {
                     /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                            echo "Waiting for other apt-get processes to finish..."
+                            sleep 5
+                        done
                         if ! command -v curl >/dev/null 2>&1; then
-                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                echo "Waiting for other apt-get processes to finish..."
-                                sleep 5
-                            done
                             apt-get update
                             apt-get install -y curl
                         fi
