@@ -19,8 +19,8 @@ pipeline {
                 script {
                     sh '''
                         if ! command -v curl >/dev/null 2>&1; then
-                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                echo "Waiting for other apt-get processes to finish..."
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                echo "Waiting for other apt/dpkg processes to finish..."
                                 sleep 5
                             done
                             apt-get update
@@ -159,8 +159,8 @@ pipeline {
             steps {
                 sh '''
                     if ! command -v curl >/dev/null 2>&1; then
-                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                            echo "Waiting for other apt-get processes to finish..."
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
                             sleep 5
                         done
                         apt-get update
@@ -194,8 +194,8 @@ pipeline {
                     for (res in coreResources) {
                         sh '''
                             if ! command -v curl >/dev/null 2>&1; then
-                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                    echo "Waiting for other apt-get processes to finish..."
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                    echo "Waiting for other apt/dpkg processes to finish..."
                                     sleep 5
                                 done
                                 apt-get update
@@ -219,8 +219,8 @@ pipeline {
                 sh '''
                     for i in {1..6}; do
                         if ! command -v curl >/dev/null 2>&1; then
-                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                echo "Waiting for other apt-get processes to finish..."
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                echo "Waiting for other apt/dpkg processes to finish..."
                                 sleep 5
                             done
                             apt-get update
@@ -261,8 +261,8 @@ pipeline {
             steps {
                 sh '''
                     # Wait for apt lock and install curl if missing
-                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                        echo "Waiting for other apt-get processes to finish..."
+                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                        echo "Waiting for other apt/dpkg processes to finish..."
                         sleep 5
                     done
                     if ! command -v curl >/dev/null 2>&1; then
@@ -289,8 +289,8 @@ pipeline {
                     /usr/local/bin/kubectl apply -f ${WORKSPACE}/kubernetes/Frontend/frontend-service.yaml -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
-                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                            echo "Waiting for other apt-get processes to finish..."
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
                             sleep 5
                         done
                         if ! command -v curl >/dev/null 2>&1; then
@@ -332,8 +332,8 @@ pipeline {
             steps {
                 sh '''
                     if ! command -v curl >/dev/null 2>&1; then
-                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                            echo "Waiting for other apt-get processes to finish..."
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
                             sleep 5
                         done
                         apt-get update
@@ -353,8 +353,8 @@ pipeline {
 
                     for i in {1..6}; do
                         if ! command -v curl >/dev/null 2>&1; then
-                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                echo "Waiting for other apt-get processes to finish..."
+                            while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                echo "Waiting for other apt/dpkg processes to finish..."
                                 sleep 5
                             done
                             apt-get update
@@ -406,8 +406,8 @@ pipeline {
         failure {
             sh '''
                 if ! command -v curl >/dev/null 2>&1; then
-                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                        echo "Waiting for other apt-get processes to finish..."
+                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                        echo "Waiting for other apt/dpkg processes to finish..."
                         sleep 5
                     done
                     apt-get update
