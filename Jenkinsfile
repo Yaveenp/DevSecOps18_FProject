@@ -12,7 +12,7 @@ pipeline {
         KUBE_NAMESPACE = "financial-portfolio"
         DOCKER_REPO = "yaveenp"
         KUBECTL_BIN = '/usr/local/bin/kubectl'
-        KUBECONFIG = credentials('kubeconfig-file') // Use Jenkins credentials
+        // KUBECONFIG will be set in each stage that needs it
     }
 
     stages {
@@ -45,7 +45,18 @@ pipeline {
         stage('Test Kubernetes Connection') {
             steps {
                 script {
-                    docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${KUBECONFIG}:/root/.kube/config:ro") {
+                    // Check if kubeconfig credential exists, otherwise use default location
+                    def kubeconfigPath = ''
+                    try {
+                        withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                            kubeconfigPath = "${KUBECONFIG_FILE}"
+                        }
+                    } catch (Exception e) {
+                        echo "Warning: kubeconfig-file credential not found. Using default kubeconfig location."
+                        kubeconfigPath = "${env.HOME}/.kube/config"
+                    }
+                    
+                    docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
                         sh '''
                             echo "=== Testing Kubernetes Connection ==="
                             kubectl config get-contexts
@@ -159,7 +170,16 @@ pipeline {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${KUBECONFIG}:/root/.kube/config:ro") {
+                        def kubeconfigPath = ''
+                        try {
+                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                                kubeconfigPath = "${KUBECONFIG_FILE}"
+                            }
+                        } catch (Exception e) {
+                            kubeconfigPath = "${env.HOME}/.kube/config"
+                        }
+                        
+                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
                             sh '''
                                 echo "=== Ensure namespace exists ==="
                                 kubectl get ns ${KUBE_NAMESPACE} || kubectl create ns ${KUBE_NAMESPACE}
@@ -217,7 +237,16 @@ pipeline {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${KUBECONFIG}:/root/.kube/config:ro") {
+                        def kubeconfigPath = ''
+                        try {
+                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                                kubeconfigPath = "${KUBECONFIG_FILE}"
+                            }
+                        } catch (Exception e) {
+                            kubeconfigPath = "${env.HOME}/.kube/config"
+                        }
+                        
+                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
                             sh '''
                                 # Update deployments with new images
                                 kubectl set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
@@ -246,7 +275,16 @@ pipeline {
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${KUBECONFIG}:/root/.kube/config:ro") {
+                        def kubeconfigPath = ''
+                        try {
+                            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                                kubeconfigPath = "${KUBECONFIG_FILE}"
+                            }
+                        } catch (Exception e) {
+                            kubeconfigPath = "${env.HOME}/.kube/config"
+                        }
+                        
+                        docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
                             sh '''
                                 # Update monitoring deployments
                                 kubectl set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
@@ -295,7 +333,16 @@ pipeline {
     post {
         failure {
             script {
-                docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${KUBECONFIG}:/root/.kube/config:ro") {
+                def kubeconfigPath = ''
+                try {
+                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                        kubeconfigPath = "${KUBECONFIG_FILE}"
+                    }
+                } catch (Exception e) {
+                    kubeconfigPath = "${env.HOME}/.kube/config"
+                }
+                
+                docker.image('bitnami/kubectl:latest').inside("--entrypoint='' -v ${kubeconfigPath}:/root/.kube/config:ro") {
                     sh '''
                         echo "Pipeline failed: Rolling back deployments..."
                         kubectl rollout undo deployment/flask-deployment -n ${KUBE_NAMESPACE} || true
@@ -307,7 +354,8 @@ pipeline {
             }
         }
         always {
-            cleanWs(deleteDirs: true, disableDeferredWipeout: true, patterns: [[pattern: '**/*', type: 'INCLUDE']])
+            // Use deleteDir() instead of cleanWs() since the plugin may not be installed
+            deleteDir()
             
             script {
                 sh '''
