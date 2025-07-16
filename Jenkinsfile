@@ -20,6 +20,15 @@ pipeline {
                     sh '''
                         echo "=== Setting up build environment ==="
                         
+                        # Clean up any old kubernetes repo
+                        rm -f /etc/apt/sources.list.d/kubernetes.list
+                        
+                        # Update package list
+                        apt-get update || true
+                        
+                        # Install basic tools
+                        apt-get install -y curl wget python3-pip python3-venv || true
+                        
                         # Install kubectl in workspace
                         if [ ! -f "${WORKSPACE}/kubectl" ]; then
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -27,9 +36,6 @@ pipeline {
                         fi
                         
                         # Setup Python virtual environment
-                        apt-get update || true
-                        apt-get install -y python3-pip python3-venv || true
-                        
                         python3 -m venv ${WORKSPACE}/venv
                         . ${WORKSPACE}/venv/bin/activate
                         pip install --upgrade pip
@@ -65,18 +71,45 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
-                                # Install Node.js if not available
+                                # Install Node.js and npm if not available
                                 if ! command -v node &> /dev/null; then
-                                    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                                    apt-get update
                                     apt-get install -y nodejs
                                 fi
+                                
+                                # Install npm separately if not available
+                                if ! command -v npm &> /dev/null; then
+                                    echo "Installing npm..."
+                                    apt-get install -y npm || {
+                                        # Alternative: Install npm via Node.js
+                                        curl -L https://www.npmjs.com/install.sh | sh
+                                    }
+                                fi
+                                
+                                # Verify installations
+                                echo "Node version: $(node --version || echo 'Not installed')"
+                                echo "NPM version: $(npm --version || echo 'Not installed')"
                                 
                                 touch lint_react.log
                                 
                                 if [ -d "app/Frontend" ]; then
                                     cd app/Frontend
-                                    npm install
-                                    npm run lint > ${WORKSPACE}/lint_react.log 2>&1 || echo "ESLint found issues"
+                                    
+                                    # Check if package.json exists
+                                    if [ -f "package.json" ]; then
+                                        npm install
+                                        
+                                        # Check if lint script exists in package.json
+                                        if grep -q '"lint"' package.json; then
+                                            npm run lint > ${WORKSPACE}/lint_react.log 2>&1 || echo "ESLint found issues"
+                                        else
+                                            echo "No lint script found in package.json" > ${WORKSPACE}/lint_react.log
+                                            echo "Available scripts:" >> ${WORKSPACE}/lint_react.log
+                                            npm run >> ${WORKSPACE}/lint_react.log 2>&1
+                                        fi
+                                    else
+                                        echo "No package.json found in app/Frontend" > ${WORKSPACE}/lint_react.log
+                                    fi
                                 else
                                     echo "Frontend directory not found" > ${WORKSPACE}/lint_react.log
                                 fi
