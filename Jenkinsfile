@@ -359,9 +359,9 @@ pipeline {
                         mv kubectl /usr/local/bin/kubectl
                     fi
 
-                    /usr/local/bin/kubectl set image deployment/grafana grafana/grafana:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/grafana grafana=grafana/grafana:latest -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl rollout status deployment/grafana -n ${KUBE_NAMESPACE}
-                    /usr/local/bin/kubectl set image deployment/prometheus prom/prometheus:latest -n ${KUBE_NAMESPACE}
+                    /usr/local/bin/kubectl set image deployment/prometheus prometheus=prom/prometheus:latest -n ${KUBE_NAMESPACE}
                     /usr/local/bin/kubectl rollout status deployment/prometheus -n ${KUBE_NAMESPACE}
 
                     for i in {1..6}; do
