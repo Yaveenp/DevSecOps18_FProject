@@ -154,56 +154,57 @@ pipeline {
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
-            timeout(time: 10, unit: 'MINUTES')
             steps {
-                echo "=== Ensure namespace exists ==="
-                sh '''
-                    ${KUBECTL_BIN} get ns ${KUBE_NAMESPACE} || ${KUBECTL_BIN} create ns ${KUBE_NAMESPACE}
-                '''
+                timeout(time: 10, unit: 'MINUTES') {
+                    echo "=== Ensure namespace exists ==="
+                    sh '''
+                        ${KUBECTL_BIN} get ns ${KUBE_NAMESPACE} || ${KUBECTL_BIN} create ns ${KUBE_NAMESPACE}
+                    '''
 
-                echo "=== Applying core Kubernetes resources ==="
-                script {
-                    def coreResources = [
-                        "${WORKSPACE}/Postgres/postgres-configmap.yaml",
-                        "${WORKSPACE}/kubernetes/flask/flask-secret.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml",
-                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml",
-                        "${WORKSPACE}/kubernetes/ingress.yaml",
-                        "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
-                    ]
-                    for (res in coreResources) {
-                        sh """
-                            if [ -f \"${res}\" ]; then
-                                echo 'Applying: ${res}'
-                                ${KUBECTL_BIN} apply -f "${res}" -n ${KUBE_NAMESPACE}
-                            else
-                                echo 'WARNING: Missing resource file: ${res}'
-                            fi
-                        """
+                    echo "=== Applying core Kubernetes resources ==="
+                    script {
+                        def coreResources = [
+                            "${WORKSPACE}/Postgres/postgres-configmap.yaml",
+                            "${WORKSPACE}/kubernetes/flask/flask-secret.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml",
+                            "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml",
+                            "${WORKSPACE}/kubernetes/ingress.yaml",
+                            "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
+                        ]
+                        for (res in coreResources) {
+                            sh """
+                                if [ -f \"${res}\" ]; then
+                                    echo 'Applying: ${res}'
+                                    ${KUBECTL_BIN} apply -f "${res}" -n ${KUBE_NAMESPACE}
+                                else
+                                    echo 'WARNING: Missing resource file: ${res}'
+                                fi
+                            """
+                        }
                     }
-                }
 
-                sh '''
-                    for i in {1..6}; do
-                        NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
-                        if [ "$NOT_READY" -eq 0 ]; then
-                            echo "All pods are running and ready."
-                            exit 0
-                        fi
-                        echo "Waiting for pods to be ready... ($i/6)"
+                    sh '''
+                        for i in {1..6}; do
+                            NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                            if [ "$NOT_READY" -eq 0 ]; then
+                                echo "All pods are running and ready."
+                                exit 0
+                            fi
+                            echo "Waiting for pods to be ready... ($i/6)"
+                            ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                            sleep 20
+                        done
+                        echo "Some pods are not ready."
                         ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
-                        sleep 20
-                    done
-                    echo "Some pods are not ready."
-                    ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
-                    exit 1
-                '''
+                        exit 1
+                    '''
+                }
             }
         }
 
