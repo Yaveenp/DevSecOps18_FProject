@@ -56,7 +56,7 @@ pipeline {
                                     sleep 5
                                 done
                                 apt-get update
-
+                                sleep 5
                                 # Wait for apt locks before install
                                 while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
                                     echo "Waiting for other apt/dpkg processes to finish..."
