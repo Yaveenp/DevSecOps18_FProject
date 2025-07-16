@@ -269,12 +269,17 @@ pipeline {
             steps {
                 sh '''
                     # Wait for apt lock and install curl if missing
-                    while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-                        echo "Waiting for other apt/dpkg processes to finish..."
-                        sleep 5
-                    done
                     if ! command -v curl >/dev/null 2>&1; then
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
+                            sleep 5
+                        done
                         apt-get update
+
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
+                            sleep 5
+                        done
                         apt-get install -y curl
                     fi
                     if [ ! -f "/usr/local/bin/kubectl" ]; then
