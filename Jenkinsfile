@@ -11,7 +11,7 @@ pipeline {
         FRONTEND_IMAGE = "yaveenp/investment-frontend:${BUILD_NUMBER}"
         KUBE_NAMESPACE = "financial-portfolio"
         DOCKER_REPO = "yaveenp"
-        KUBECTL_BIN = 'C:\\kubectl\\kubectl'
+        KUBECTL_BIN = '/usr/local/bin/kubectl'
     }
 
     stages {
@@ -21,19 +21,18 @@ pipeline {
                     sh '''
                         echo "=== Setting up build environment ==="
 
-                        # Verify kubectl existence in C:\\kubectl
-                        if [ ! -f "C:\\kubectl\\kubectl" ]; then
-                            echo "kubectl not found in C:\\kubectl. Downloading..."
-                            mkdir -p C:\\kubectl
-                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/windows/amd64/kubectl"
-                            mv kubectl C:\\kubectl\\kubectl
-                            chmod +x C:\\kubectl\\kubectl
+                        # Verify kubectl existence in /usr/local/bin
+                        if [ ! -f "/usr/local/bin/kubectl" ]; then
+                            echo "kubectl not found in /usr/local/bin. Downloading..."
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            chmod +x kubectl
+                            sudo mv kubectl /usr/local/bin/kubectl
                         else
-                            echo "kubectl already exists in C:\\kubectl."
+                            echo "kubectl already exists in /usr/local/bin."
                         fi
 
                         # Verify kubectl installation
-                        C:\\kubectl\\kubectl version --client || {
+                        /usr/local/bin/kubectl version --client || {
                             echo "Failed to verify kubectl installation."
                             exit 1
                         }
