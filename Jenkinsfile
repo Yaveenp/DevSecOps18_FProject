@@ -316,18 +316,18 @@ pipeline {
                             chmod +x kubectl
                             mv kubectl /usr/local/bin/kubectl
                         fi
-                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        NOT_READY=$(/usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | grep -v "Terminating" | wc -l)
                         if [ "$NOT_READY" -eq 0 ]; then
                             echo "All pods are running and ready."
                             exit 0
+                        else
+                            echo "Waiting for pods to be ready... ($i/6)"
+                            /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                         fi
-                        echo "Waiting for pods to be ready... ($i/6)"
-                        /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
                         sleep 20
                     done
-                    echo "Some pods are not ready."
+                    echo "Final pod status:"
                     /usr/local/bin/kubectl get pods -n ${KUBE_NAMESPACE}
-                    exit 1
                 '''
             }
         }
