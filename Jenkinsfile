@@ -413,6 +413,7 @@ pipeline {
                         done
                         apt-get update
                         apt-get install -y curl
+                        apt-get install -y python3-pip
                     fi
                     if [ ! -f "/usr/local/bin/kubectl" ]; then
                         echo "kubectl not found in /usr/local/bin. Downloading..."
