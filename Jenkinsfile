@@ -50,12 +50,20 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
-                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-                                    echo "Waiting for other apt-get processes to finish..."
+                                # Wait for apt locks before update
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                    echo "Waiting for other apt/dpkg processes to finish..."
                                     sleep 5
                                 done
                                 apt-get update
+
+                                # Wait for apt locks before install
+                                while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                                    echo "Waiting for other apt/dpkg processes to finish..."
+                                    sleep 5
+                                done
                                 apt-get install -y python3-venv
+
                                 python3 -m venv venv
                                 . venv/bin/activate
                                 pip install --upgrade pip flake8
