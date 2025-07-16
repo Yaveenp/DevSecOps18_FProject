@@ -11,7 +11,7 @@ pipeline {
         FRONTEND_IMAGE = "yaveenp/investment-frontend:${BUILD_NUMBER}"
         KUBE_NAMESPACE = "financial-portfolio"
         DOCKER_REPO = "yaveenp"
-        KUBECTL_BIN = 'C:\\kubectl\\kubectl' // Updated path for kubectl
+        KUBECTL_BIN = 'C:\\kubectl\\kubectl'
     }
 
     stages {
@@ -49,15 +49,12 @@ pipeline {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
                                 . ${WORKSPACE}/venv/bin/activate
-                                
                                 touch lint_flask.log
-                                
                                 if [ -f "app/Backend/main.py" ] || [ -d "app/Backend/Financial_Portfolio_Tracker/" ]; then
                                     flake8 app/Backend/ > lint_flask.log 2>&1 || echo "Flake8 found issues"
                                 else
                                     echo "Backend files not found" > lint_flask.log
                                 fi
-                                
                                 cat lint_flask.log
                             '''
                             archiveArtifacts artifacts: 'lint_flask.log', allowEmptyArchive: true
@@ -68,35 +65,23 @@ pipeline {
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                             sh '''
-                                # Install Node.js and npm if not available
                                 if ! command -v node &> /dev/null; then
                                     apt-get update
                                     apt-get install -y nodejs
                                 fi
-                                
-                                # Install npm separately if not available
                                 if ! command -v npm &> /dev/null; then
                                     echo "Installing npm..."
                                     apt-get install -y npm || {
-                                        # Alternative: Install npm via Node.js
                                         curl -L https://www.npmjs.com/install.sh | sh
                                     }
                                 fi
-                                
-                                # Verify installations
                                 echo "Node version: $(node --version || echo 'Not installed')"
                                 echo "NPM version: $(npm --version || echo 'Not installed')"
-                                
                                 touch lint_react.log
-                                
                                 if [ -d "app/Frontend" ]; then
                                     cd app/Frontend
-                                    
-                                    # Check if package.json exists
                                     if [ -f "package.json" ]; then
                                         npm install
-                                        
-                                        # Check if lint script exists in package.json
                                         if grep -q '"lint"' package.json; then
                                             npm run lint > ${WORKSPACE}/lint_react.log 2>&1 || echo "ESLint found issues"
                                         else
@@ -110,7 +95,6 @@ pipeline {
                                 else
                                     echo "Frontend directory not found" > ${WORKSPACE}/lint_react.log
                                 fi
-                                
                                 cat ${WORKSPACE}/lint_react.log
                             '''
                             archiveArtifacts artifacts: 'lint_react.log', allowEmptyArchive: true
@@ -127,29 +111,29 @@ pipeline {
                     args '--privileged -v /var/run/docker.sock:/var/run/docker.sock --label pipeline=${APP_NAME}'
                 }
             }
+            options {
+                timeout(time: 20, unit: 'MINUTES')
+            }
             steps {
-                timeout(time: 20, unit: 'MINUTES') {
-                    script {
-                        sh '''
-                            if ! docker buildx version > /dev/null 2>&1; then
-                              mkdir -p ~/.docker/cli-plugins/
-                              wget https://github.com/docker/buildx/releases/download/v0.12.0/buildx-v0.12.0.linux-amd64 -O ~/.docker/cli-plugins/docker-buildx
-                              chmod +x ~/.docker/cli-plugins/docker-buildx
-                            fi
-                            docker buildx create --name mybuilder --use
-                            docker buildx inspect --bootstrap
-                        '''
-                        withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                            sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                        }
-
-                        sh """
-                            docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push app/Backend
-                            docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend
-                            sed -i 's|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml
-                            sed -i 's|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml
-                        """
+                script {
+                    sh '''
+                        if ! docker buildx version > /dev/null 2>&1; then
+                          mkdir -p ~/.docker/cli-plugins/
+                          wget https://github.com/docker/buildx/releases/download/v0.12.0/buildx-v0.12.0.linux-amd64 -O ~/.docker/cli-plugins/docker-buildx
+                          chmod +x ~/.docker/cli-plugins/docker-buildx
+                        fi
+                        docker buildx create --name mybuilder --use
+                        docker buildx inspect --bootstrap
+                    '''
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
                     }
+                    sh """
+                        docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push app/Backend
+                        docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend
+                        sed -i 's|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml
+                        sed -i 's|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml
+                    """
                 }
             }
         }
@@ -161,68 +145,69 @@ pipeline {
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
+            options {
+                timeout(time: 10, unit: 'MINUTES')
+            }
             steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    echo "=== Ensure namespace exists ==="
-                    sh '''
-                        ${KUBECTL_BIN} get ns ${KUBE_NAMESPACE} || ${KUBECTL_BIN} create ns ${KUBE_NAMESPACE}
-                    '''
-
-                    echo "=== Applying core Kubernetes resources ==="
-                    script {
-                        def coreResources = [
-                            "${WORKSPACE}/Postgres/postgres-configmap.yaml",
-                            "${WORKSPACE}/kubernetes/flask/flask-secret.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml",
-                            "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml",
-                            "${WORKSPACE}/kubernetes/ingress.yaml",
-                            "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
-                        ]
-                        for (res in coreResources) {
-                            sh """
-                                if [ -f \"${res}\" ]; then
-                                    echo 'Applying: ${res}'
-                                    ${KUBECTL_BIN} apply -f "${res}" -n ${KUBE_NAMESPACE}
-                                else
-                                    echo 'WARNING: Missing resource file: ${res}'
-                                fi
-                            """
-                        }
-                    }
-
-                    sh '''
-                        for i in {1..6}; do
-                            NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
-                            if [ "$NOT_READY" -eq 0 ]; then
-                                echo "All pods are running and ready."
-                                exit 0
+                echo "=== Ensure namespace exists ==="
+                sh '''
+                    ${KUBECTL_BIN} get ns ${KUBE_NAMESPACE} || ${KUBECTL_BIN} create ns ${KUBE_NAMESPACE}
+                '''
+                echo "=== Applying core Kubernetes resources ==="
+                script {
+                    def coreResources = [
+                        "${WORKSPACE}/Postgres/postgres-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/flask/flask-secret.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml",
+                        "${WORKSPACE}/kubernetes/ingress.yaml",
+                        "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
+                    ]
+                    for (res in coreResources) {
+                        sh """
+                            if [ -f \"${res}\" ]; then
+                                echo 'Applying: ${res}'
+                                ${KUBECTL_BIN} apply -f "${res}" -n ${KUBE_NAMESPACE}
+                            else
+                                echo 'WARNING: Missing resource file: ${res}'
                             fi
-                            echo "Waiting for pods to be ready... ($i/6)"
-                            ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
-                            sleep 20
-                        done
-                        echo "Some pods are not ready."
-                        ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
-                        exit 1
-                    '''
+                        """
+                    }
                 }
+                sh '''
+                    for i in {1..6}; do
+                        NOT_READY=$(${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE} --no-headers | grep -v "Running" | grep -v "Completed" | wc -l)
+                        if [ "$NOT_READY" -eq 0 ]; then
+                            echo "All pods are running and ready."
+                            exit 0
+                        fi
+                        echo "Waiting for pods to be ready... ($i/6)"
+                        ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                        sleep 20
+                    done
+                    echo "Some pods are not ready."
+                    ${KUBECTL_BIN} get pods -n ${KUBE_NAMESPACE}
+                    exit 1
+                '''
             }
         }
-    
-         stage('Deploy Application') {
+
+        stage('Deploy Application') {
+            options {
+                timeout(time: 10, unit: 'MINUTES')
+            }
             agent {
                 docker {
                     image 'ubuntu:22.04'
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
-            timeout(time: 10, unit: 'MINUTES')
             steps {
                 sh '''
                     ${KUBECTL_BIN} set image deployment/flask-deployment flask-app=${BACKEND_IMAGE} -n ${KUBE_NAMESPACE}
@@ -251,13 +236,15 @@ pipeline {
         }
 
         stage('Deploy Monitoring Stack') {
+            options {
+                timeout(time: 10, unit: 'MINUTES')
+            }
             agent {
                 docker {
                     image 'ubuntu:22.04'
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
-            timeout(time: 10, unit: 'MINUTES')
             steps {
                 sh '''
                     ${KUBECTL_BIN} set image deployment/grafana-deployment grafana=yaveenp/grafana:latest -n ${KUBE_NAMESPACE}
@@ -283,13 +270,15 @@ pipeline {
         }
 
         stage('API Test') {
+            options {
+                timeout(time: 5, unit: 'MINUTES')
+            }
             agent {
                 docker {
                     image 'python:3.11'
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
-            timeout(time: 5, unit: 'MINUTES')
             steps {
                 sh '''
                     pip install pytest requests
