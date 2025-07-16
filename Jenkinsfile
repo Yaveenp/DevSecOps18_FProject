@@ -120,28 +120,29 @@ pipeline {
                     args '--privileged -v /var/run/docker.sock:/var/run/docker.sock --label pipeline=${APP_NAME}'
                 }
             }
-            timeout(time: 20, unit: 'MINUTES')
             steps {
-                script {
-                    sh '''
-                        if ! docker buildx version > /dev/null 2>&1; then
-                          mkdir -p ~/.docker/cli-plugins/
-                          wget https://github.com/docker/buildx/releases/download/v0.12.0/buildx-v0.12.0.linux-amd64 -O ~/.docker/cli-plugins/docker-buildx
-                          chmod +x ~/.docker/cli-plugins/docker-buildx
-                        fi
-                        docker buildx create --name mybuilder --use
-                        docker buildx inspect --bootstrap
-                    '''
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-                    }
+                timeout(time: 20, unit: 'MINUTES') {
+                    script {
+                        sh '''
+                            if ! docker buildx version > /dev/null 2>&1; then
+                              mkdir -p ~/.docker/cli-plugins/
+                              wget https://github.com/docker/buildx/releases/download/v0.12.0/buildx-v0.12.0.linux-amd64 -O ~/.docker/cli-plugins/docker-buildx
+                              chmod +x ~/.docker/cli-plugins/docker-buildx
+                            fi
+                            docker buildx create --name mybuilder --use
+                            docker buildx inspect --bootstrap
+                        '''
+                        withCredentials([usernamePassword(credentialsId: 'docker-hub-cred-yaveen', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                        }
 
-                    sh """
-                        docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push app/Backend
-                        docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend
-                        sed -i 's|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml
-                        sed -i 's|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml
-                    """
+                        sh """
+                            docker buildx build --platform linux/amd64,linux/arm64 -t ${BACKEND_IMAGE} -f app/Backend/flask-dockerfile --push app/Backend
+                            docker buildx build --platform linux/amd64,linux/arm64 -t ${FRONTEND_IMAGE} -f app/Frontend/Dockerfile --push app/Frontend
+                            sed -i 's|image: yaveenp/investment-flask:.*|image: ${BACKEND_IMAGE}|' ${WORKSPACE}/kubernetes/flask/flask-deployment.yaml
+                            sed -i 's|image: yaveenp/investment-frontend:.*|image: ${FRONTEND_IMAGE}|' ${WORKSPACE}/kubernetes/Frontend/frontend-deployment.yaml
+                        """
+                    }
                 }
             }
         }
