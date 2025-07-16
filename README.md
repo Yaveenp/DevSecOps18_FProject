@@ -35,7 +35,6 @@ The project is structured to guide users and contributors through a clear progre
 - **Kubernetes** - Container orchestration and deployment
 - **Prometheus** - Monitoring and metrics
 - **Grafana** - Visualization and dashboards
-- **Terraform** - Infrastructure as Code (IaC)
 - **Bash** - Database initialization scripts
 
 ---
@@ -121,7 +120,6 @@ DevSecOps18_FProject/
 - Docker and Docker Compose
 - Kubernetes cluster (local or cloud)
 - Python 3.8+
-- Terraform (for infrastructure provisioning)
 
 ### Installation
 **Clone the repository:**
@@ -228,8 +226,6 @@ POSTGRES_PASSWORD: thisisastrongpassword
 ALPHA_VANTAGE_API_KEY=your_api_key
 STOCK_API_URL=https://www.alphavantage.co/query
 
-# Flask Configuration
-FLASK_ENV=development
 ```
 
 ### Database Setup
@@ -246,7 +242,6 @@ The application follows a microservices architecture with the following componen
 - **Database**: PostgreSQL for data persistence
 - **Monitoring**: Prometheus for metrics, Grafana for dashboards
 - **Container Orchestration**: Kubernetes for deployment and scaling
-- **Infrastructure**: Terraform for cloud resource provisioning
 
 ---
 
