@@ -16,13 +16,13 @@ pipeline {
     }
 
     stages {
-        stage('Install Tools')  {
-        agent {
-            docker {
-                image 'ubuntu:22.04'
-                args '-u root --label pipeline=${APP_NAME}'
+        stage('Install Tools') {
+            agent {
+                docker {
+                    image 'ubuntu:22.04'
+                    args '-u root --label pipeline=${APP_NAME}'
+                }
             }
-        }    
             steps {
                 sh '''
                     echo "=== Installing Python Tools ==="
@@ -300,39 +300,28 @@ pipeline {
             sh "${KUBECTL_BIN} rollout undo deployment/prometheus-deployment -n ${KUBE_NAMESPACE} || true"
         }
         always {
-            agent {
-                docker {
-                    image 'ubuntu:22.04'
-                    args '-u root --label pipeline=${APP_NAME}'
-                }
-            }
-            environment {
-                KUBECONFIG = '/root/.kube/config'
-            }
-            steps {
-                sh '''
-                    echo "=== Installing kubectl ==="
-                    apt-get update
-                    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-                    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
-                    echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
-                    apt-get update
-                    apt-get install -y kubectl
-                '''
+            echo "=== Installing kubectl ==="
+            sh '''
+                apt-get update
+                apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+                curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/kubernetes-archive-keyring.gpg
+                echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+                apt-get update
+                apt-get install -y kubectl
+            '''
 
-                echo "Cleaning up local Docker images..."
-                sh "docker rmi -f ${BACKEND_IMAGE} || true"
-                sh "docker rmi -f ${FRONTEND_IMAGE} || true"
+            echo "Cleaning up local Docker images..."
+            sh "docker rmi -f ${BACKEND_IMAGE} || true"
+            sh "docker rmi -f ${FRONTEND_IMAGE} || true"
 
-                echo "Cleaning stopped containers..."
-                sh '''
-                    CONTAINERS=$(docker ps -a -q --filter "label=pipeline=${APP_NAME}" --filter "status=exited")
-                    [ -n "$CONTAINERS" ] && docker container rm $CONTAINERS || true
-                '''
+            echo "Cleaning stopped containers..."
+            sh '''
+                CONTAINERS=$(docker ps -a -q --filter "label=pipeline=${APP_NAME}" --filter "status=exited")
+                [ -n "$CONTAINERS" ] && docker container rm $CONTAINERS || true
+            '''
 
-                echo "Cleaning workspace..."
-                sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
-            }
+            echo "Cleaning workspace..."
+            sh 'find $WORKSPACE -type f ! -name "lint_*.log" -delete'
         }
     }
 }
