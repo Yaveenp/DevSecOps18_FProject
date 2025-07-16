@@ -400,14 +400,29 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'python:3.11'
+                    image 'ubuntu:22.04'
                     args '-u root --label pipeline=${APP_NAME}'
                 }
             }
             steps {
                 sh '''
+                    if ! command -v curl >/dev/null 2>&1; then
+                        while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                            echo "Waiting for other apt/dpkg processes to finish..."
+                            sleep 5
+                        done
+                        apt-get update
+                        apt-get install -y curl
+                    fi
+                    if [ ! -f "/usr/local/bin/kubectl" ]; then
+                        echo "kubectl not found in /usr/local/bin. Downloading..."
+                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                        chmod +x kubectl
+                        mv kubectl /usr/local/bin/kubectl
+                    fi
                     pip install pytest requests
-                    sed -i 's|http://flask-app:5050|http://react-ui:3001|g' app/Backend/tests/api_tests.py
+                    kubectl port-forward svc/frontend-service 3001:3001 -n ${KUBE_NAMESPACE} &
+                    sleep 5
                     pytest app/Backend/tests/api_tests.py -v
                 '''
             }
