@@ -200,7 +200,7 @@ pipeline {
                         "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
                     ]
                     for (res in coreResources) {
-                        sh '''
+                        sh """
                             if ! command -v curl >/dev/null 2>&1; then
                                 while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
                                     echo "Waiting for other apt/dpkg processes to finish..."
@@ -215,13 +215,13 @@ pipeline {
                                 chmod +x kubectl
                                 mv kubectl /usr/local/bin/kubectl
                             fi
-                            if [ -f \'${res}\' ]; then
+                            if [ -f "${res}" ]; then
                                 echo 'Applying: ${res}'
-                                /usr/local/bin/kubectl apply -f \'${res}\' -n ${KUBE_NAMESPACE}
+                                /usr/local/bin/kubectl apply -f "${res}" -n ${KUBE_NAMESPACE}
                             else
                                 echo 'WARNING: Missing resource file: ${res}'
                             fi
-                        '''
+                        """
                     }
                 }
                 sh '''
