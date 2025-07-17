@@ -215,9 +215,9 @@ pipeline {
                                 chmod +x kubectl
                                 mv kubectl /usr/local/bin/kubectl
                             fi
-                            if [ -f \"${res}\" ]; then
+                            if [ -f \'${res}\' ]; then
                                 echo 'Applying: ${res}'
-                                /usr/local/bin/kubectl apply -f \"${res}\" -n ${KUBE_NAMESPACE}
+                                /usr/local/bin/kubectl apply -f \'${res}\' -n ${KUBE_NAMESPACE}
                             else
                                 echo 'WARNING: Missing resource file: ${res}'
                             fi
