@@ -186,18 +186,17 @@ pipeline {
                 echo "=== Applying core Kubernetes resources ==="
                 script {
                     def coreResources = [
-                        "${WORKSPACE}/Postgres/postgres-configmap.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/flask/flask-secret.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/ingress.yaml -n ${KUBE_NAMESPACE}",
-                        "${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml"
+                        "${WORKSPACE}/Postgres/postgres-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/flask/flask-secret.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-datasource-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-dashboard-provider-configmap.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/grafana-service.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/prometheus-service.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-daemonset.yaml",
+                        "${WORKSPACE}/kubernetes/Monitoring/node-exporter-service.yaml",
+                        "${WORKSPACE}/kubernetes/ingress.yaml"
                     ]
                     for (res in coreResources) {
                         sh """
@@ -217,12 +216,13 @@ pipeline {
                             fi
                             if [ -f \"${res}\" ]; then
                                 echo "Applying: ${res}"
-                                /usr/local/bin/kubectl apply -f \"${res}\" 
+                                /usr/local/bin/kubectl apply -f \"${res}\" -n \$KUBE_NAMESPACE
                             else
                                 echo "WARNING: Missing resource file: ${res}"
                             fi
                         """
                     }
+                    sh "/usr/local/bin/kubectl apply -f \"${WORKSPACE}/kubernetes/ingress-nginx-controller.yaml\""
                 }
                 sh '''
                     for i in {1..6}; do
