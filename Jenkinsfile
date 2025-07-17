@@ -216,10 +216,10 @@ pipeline {
                                 mv kubectl /usr/local/bin/kubectl
                             fi
                             if [ -f "${res}" ]; then
-                                echo 'Applying: ${res}'
+                                echo "Applying: ${res}"
                                 /usr/local/bin/kubectl apply -f "${res}" -n ${KUBE_NAMESPACE}
                             else
-                                echo 'WARNING: Missing resource file: ${res}'
+                                echo "WARNING: Missing resource file: ${res}"
                             fi
                         """
                     }
