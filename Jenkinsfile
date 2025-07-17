@@ -211,13 +211,13 @@ pipeline {
                             fi
                             if [ ! -f "/usr/local/bin/kubectl" ]; then
                                 echo "kubectl not found in /usr/local/bin. Downloading..."
-                                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                                curl -LO "https://dl.k8s.io/release/\$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                                 chmod +x kubectl
                                 mv kubectl /usr/local/bin/kubectl
                             fi
                             if [ -f \"${res}\" ]; then
                                 echo "Applying: ${res}"
-                                /usr/local/bin/kubectl apply -f \"${res}\" -n \${KUBE_NAMESPACE}
+                                /usr/local/bin/kubectl apply -f \"${res}\" -n \$KUBE_NAMESPACE
                             else
                                 echo "WARNING: Missing resource file: ${res}"
                             fi
